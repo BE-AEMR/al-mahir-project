@@ -1,0 +1,50 @@
+===============================================================================
+                MATRICE DES PERMISSIONS RBAC - WEBXIO (AL MAHIR Project)
+===============================================================================
+
++-----------------+------------+------------+---------------+---------------+----------------+---------------+
+| RESSOURCE       | ACTION     | ADMIN      | CHEF DE       | MEMBRE        | RESPONSABLE    | OBSERVATEUR   |
+|                 |            | SYSTÈME    | PROJET        | D'ÉQUIPE      | FINANCIER      |               |
++=================+============+============+===============+===============+================+===============+
+| PROJET          | Créer      | OUI        | OUI (limité)  | NON           | NON            | NON           |
+| PROJET          | Lire       | OUI        | OUI (siens)   | OUI (assigné) | OUI (limité)   | OUI (assigné) |
+| PROJET          | Modifier   | OUI        | OUI (siens)   | NON           | NON            | NON           |
+| PROJET          | Supprimer  | OUI        | NON           | NON           | NON            | NON           |
++-----------------+------------+------------+---------------+---------------+----------------+---------------+
+| PHASE           | Créer      | OUI        | OUI (siens)   | NON           | NON            | NON           |
+| PHASE           | Lire       | OUI        | OUI (siens)   | OUI (assigné) | OUI (limité)   | OUI (assigné) |
+| PHASE           | Modifier   | OUI        | OUI (siens)   | NON           | NON            | NON           |
+| PHASE           | Réordonner | OUI        | OUI (siens)   | NON           | NON            | NON           |
+| PHASE           | Supprimer  | OUI        | OUI (siens)   | NON           | NON            | NON           |
++-----------------+------------+------------+---------------+---------------+----------------+---------------+
+| TÂCHE           | Créer      | OUI        | OUI (siens)   | OUI (limité)  | NON            | NON           |
+| TÂCHE           | Lire       | OUI        | OUI (siens)   | OUI (assigné) | OUI (limité)   | OUI (assigné) |
+| TÂCHE           | Modifier   | OUI        | OUI (siens)   | OUI (assignée)| NON            | NON           |
+| TÂCHE           | Assigner   | OUI        | OUI (siens)   | NON           | NON            | NON           |
+| TÂCHE           | Chg. statut| OUI        | OUI (siens)   | OUI (assignée)| NON            | NON           |
+| TÂCHE           | Supprimer  | OUI        | OUI (siens)   | NON           | NON            | NON           |
++-----------------+------------+------------+---------------+---------------+----------------+---------------+
+| FINANCE         | Créer      | OUI        | OUI (limité)  | NON           | OUI            | NON           |
+| FINANCE         | Lire       | OUI        | OUI (siens)   | NON           | OUI            | OUI (limité)  |
+| FINANCE         | Modifier   | OUI        | NON           | NON           | OUI            | NON           |
+| FINANCE         | Approuver  | OUI        | OUI (siens)   | NON           | OUI            | NON           |
+| FINANCE         | Supprimer  | OUI        | NON           | NON           | OUI (limité)   | NON           |
++-----------------+------------+------------+---------------+---------------+----------------+---------------+
+| ÉQUIPE          | Créer      | OUI        | OUI           | NON           | NON            | NON           |
+| ÉQUIPE          | Lire       | OUI        | OUI (siens)   | OUI (membre)  | OUI (membre)   | OUI (membre)  |
+| ÉQUIPE          | Modifier   | OUI        | OUI (siens)   | NON           | NON            | NON           |
+| ÉQUIPE          | Inviter    | OUI        | OUI (siens)   | NON           | NON            | NON           |
+| ÉQUIPE          | Supprimer  | OUI        | NON           | NON           | NON            | NON           |
++-----------------+------------+------------+---------------+---------------+----------------+---------------+
+| UTILISATEUR     | Gérer      | OUI        | NON           | NON           | NON            | NON           |
++-----------------+------------+------------+---------------+---------------+----------------+---------------+
+| NOTIFICATION    | Configurer | OUI        | OUI (perso)   | OUI (perso)   | OUI (perso)    | OUI (perso)   |
++-----------------+------------+------------+---------------+---------------+----------------+---------------+
+
+NOTES EXPLICATIVES:
+------------------
+- OUI (siens) : Permission limitée aux projets/phases/tâches dont l'utilisateur est responsable
+- OUI (assigné) : Permission limitée aux éléments assignés à l'utilisateur
+- OUI (limité) : Permission avec restrictions (ex: montant max, type de transaction, etc.)
+- OUI (perso) : Permission limitée aux préférences personnelles
+- OUI (membre) : Permission limitée aux équipes dont l'utilisateur est membre

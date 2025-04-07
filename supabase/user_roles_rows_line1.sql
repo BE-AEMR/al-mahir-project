@@ -1,0 +1,1 @@
+INSERT INTO "public"."user_roles" ("id", "user_id", "role_id", "team_id", "project_id", "created_at", "created_by") VALUES ('6ac42790-af62-42c7-b4ae-d103fa05954f', '83d09fde-0d0e-489b-be0a-8e91774c024a', '9efa27d3-1e7b-4a68-ac8c-ecd01339778f', '1b1d1ae7-d480-4353-a720-7d037cb0ee15', null, '2025-03-31 05:35:11.757875+00', '92a9c563-a9f2-4500-ada5-2a0cd23cbf1c');

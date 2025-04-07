@@ -1,0 +1,1 @@
+supabase db pushsupabase db push
