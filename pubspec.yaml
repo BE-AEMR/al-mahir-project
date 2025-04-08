@@ -76,6 +76,7 @@ dev_dependencies:
 dependency_overrides:
   path: 1.9.0  # Si vous avez déjà ajouté cette ligne
   meta: 1.11.0
+  flutter_slidable: ^3.0.1
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
