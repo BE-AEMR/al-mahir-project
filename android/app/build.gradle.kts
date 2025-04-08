@@ -9,7 +9,7 @@ plugins {
 }
 
 // Load almahir-key.properties file
-val keystorePropertiesFile = rootProject.file("almahir-key.properties")
+val keystorePropertiesFile = project.file("almahir-key.properties")
 val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
