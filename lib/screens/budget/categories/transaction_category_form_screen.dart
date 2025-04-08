@@ -22,16 +22,16 @@ class _TransactionCategoryFormScreenState extends State<TransactionCategoryFormS
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
-  
+
   final TransactionCategoryService _categoryService = TransactionCategoryService(Supabase.instance.client);
-  
+
   bool _isLoading = false;
   String? _errorMessage;
-  
+
   // Icône sélectionnée
   IconData? _selectedIcon;
   String? _selectedIconCode;
-  
+
   // Couleur sélectionnée
   Color _selectedColor = Colors.blue;
   String? _selectedColorCode;
@@ -64,31 +64,30 @@ class _TransactionCategoryFormScreenState extends State<TransactionCategoryFormS
   @override
   void initState() {
     super.initState();
-    
+
     // Si on édite une catégorie existante, récupérer ses valeurs
     if (widget.category != null) {
       _nameController.text = widget.category!.name;
       _descriptionController.text = widget.category!.description ?? '';
-      
+
       // Récupérer l'icône si elle existe
       if (widget.category!.icon != null && widget.category!.icon!.isNotEmpty) {
         try {
           _selectedIconCode = widget.category!.icon;
-          _selectedIcon = IconData(
-            int.parse(widget.category!.icon!, radix: 16),
-            fontFamily: 'MaterialIcons',
-          );
+          // Utiliser la méthode statique pour obtenir l'icône à partir du code
+          _selectedIcon = TransactionCategory.getIconFromString(widget.category!.icon!) ?? Icons.category;
         } catch (e) {
           print('Erreur lors de la récupération de l\'icône: $e');
-          _selectedIcon = widget.category!.getIcon();
+          _selectedIcon = Icons.category;
         }
+      } else {
+        _selectedIcon = Icons.category;
       }
-      
+
       // Récupérer la couleur si elle existe
       if (widget.category!.color != null && widget.category!.color!.isNotEmpty) {
         try {
-          _selectedColorCode = widget.category!.color;
-          _selectedColor = Color(int.parse(widget.category!.color!.replaceAll('#', ''), radix: 16) | 0xFF000000);
+          _selectedColor = Color(int.parse(widget.category!.color!, radix: 16));
         } catch (e) {
           print('Erreur lors de la récupération de la couleur: $e');
           _selectedColor = widget.category!.getColor();
@@ -103,7 +102,7 @@ class _TransactionCategoryFormScreenState extends State<TransactionCategoryFormS
       } else if (widget.transactionType == 'expense') {
         _selectedColor = Colors.red;
       }
-      
+
       // Icône par défaut
       _selectedIcon = Icons.category;
       _selectedIconCode = Icons.category.codePoint.toRadixString(16);
@@ -217,7 +216,7 @@ class _TransactionCategoryFormScreenState extends State<TransactionCategoryFormS
           icon: _selectedIconCode,
           color: _selectedColorCode,
         );
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -236,7 +235,7 @@ class _TransactionCategoryFormScreenState extends State<TransactionCategoryFormS
           icon: _selectedIconCode,
           color: _selectedColorCode,
         );
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
