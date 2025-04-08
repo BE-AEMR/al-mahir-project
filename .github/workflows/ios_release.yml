@@ -22,6 +22,14 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
 
+      # Créer le fichier .env à partir des secrets
+      - name: Create .env file
+        run: |
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env
+          echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
+          echo "SUPABASE_LOGIN_PASSWORD=${{ secrets.SUPABASE_LOGIN_PASSWORD }}" >> .env
+          echo "SENDINBLUE_API_KEY=${{ secrets.SENDINBLUE_API_KEY }}" >> .env
+
       - name: Install Flutter dependencies
         run: |
           flutter pub get
@@ -105,7 +113,7 @@ jobs:
             -destination "generic/platform=iOS" -sdk iphoneos -archivePath "build/Runner.xcarchive" \
             -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
             DEVELOPMENT_TEAM="94VW99RYDQ" \
-            PROVISIONING_PROFILE_SPECIFIER="Quraan Pulaar App2" \
+            PROVISIONING_PROFILE_SPECIFIER="Al Mahir Project" \
             CODE_SIGN_IDENTITY="iPhone Distribution: Hamath Moussa Kane (94VW99RYDQ)" \
             CODE_SIGN_STYLE=Manual \
             ENABLE_BITCODE=NO \
