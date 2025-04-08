@@ -71,21 +71,22 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  build_runner: ^2.3.0
+  # Suppression de build_runner car il ne semble pas être nécessaire
   flutter_launcher_icons: ^0.13.1
+  flutter_lints: ^2.0.0
 
 dependency_overrides:
-  path: 1.9.0  # Si vous avez déjà ajouté cette ligne
+  path: 1.9.0
   meta: 1.11.0
   flutter_slidable: ^3.0.1
   analyzer: 5.13.0
+  marquee: ^2.2.3
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^2.0.0
 
 # Configuration pour les icônes de l'application
 flutter_launcher_icons:
