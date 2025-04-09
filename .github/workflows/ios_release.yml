@@ -84,7 +84,7 @@ jobs:
                 target.build_configurations.each do |config|
                   config.build_settings["CODE_SIGN_STYLE"] = "Manual"
                   config.build_settings["DEVELOPMENT_TEAM"] = "94VW99RYDQ"
-                  config.build_settings["PROVISIONING_PROFILE_SPECIFIER"] = "Al Mahir"
+                  config.build_settings["PROVISIONING_PROFILE_SPECIFIER"] = "Al Mahir Profile"
                   config.build_settings["CODE_SIGN_IDENTITY"] = "iPhone Distribution: Hamath Moussa Kane (94VW99RYDQ)"
                 end
               end
@@ -113,7 +113,7 @@ jobs:
             -destination "generic/platform=iOS" -sdk iphoneos -archivePath "build/Runner.xcarchive" \
             -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
             DEVELOPMENT_TEAM="94VW99RYDQ" \
-            PROVISIONING_PROFILE_SPECIFIER="Al Mahir" \
+            PROVISIONING_PROFILE_SPECIFIER="Al Mahir Profile" \
             CODE_SIGN_IDENTITY="iPhone Distribution: Hamath Moussa Kane (94VW99RYDQ)" \
             CODE_SIGN_STYLE=Manual \
             ENABLE_BITCODE=NO \
