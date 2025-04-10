@@ -106,7 +106,11 @@ jobs:
         env:
           DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
         run: |
-          flutter build ios --release --no-codesign
+          flutter build ios --release --no-codesign \
+            --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
+            --dart-define=SUPABASE_KEY=${{ secrets.SUPABASE_KEY }} \
+            --dart-define=SUPABASE_LOGIN_PASSWORD=${{ secrets.SUPABASE_LOGIN_PASSWORD }} \
+            --dart-define=SENDINBLUE_API_KEY=${{ secrets.SENDINBLUE_API_KEY }}
           cd ios
           xcodebuild clean -workspace Runner.xcworkspace -scheme Runner -destination "generic/platform=iOS"
           xcodebuild archive -workspace Runner.xcworkspace -scheme Runner -configuration Release \

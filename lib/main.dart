@@ -68,22 +68,30 @@ void main() async {
   _handleDeepLinks();
 }
 
-// Initialiser Supabase en arrière-plan
+// Initialiser Supabase
 Future<void> _initializeSupabase() async {
   try {
     print("Tentative d'initialisation de Supabase...");
-    final supabaseUrl = 'https://qxjxzbmihbapoeaebdvk.supabase.co';
-    final supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4anh6Ym1paGJhcG9lYWViZHZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDEwNzk4MzUsImV4cCI6MjA1NjY1NTgzNX0.x8fV1oOxZyUAvB2eono3TCthWdRpJFc3c2RQ7oU80zw';
 
+    // Essayer d'abord les valeurs de --dart-define
+    String supabaseUrl = const String.fromEnvironment('SUPABASE_URL', defaultValue: '');
+    String supabaseKey = const String.fromEnvironment('SUPABASE_KEY', defaultValue: '');
+
+    // Si vides, essayer le fichier .env
     if (supabaseUrl.isEmpty || supabaseKey.isEmpty) {
-      print("Erreur: URL ou clé Supabase manquante dans le fichier .env");
-      return;
+      supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
+      supabaseKey = dotenv.env['SUPABASE_KEY'] ?? '';
+
+      if (supabaseUrl.isEmpty || supabaseKey.isEmpty) {
+        print("Erreur: URL ou clé Supabase manquante");
+        return;
+      }
     }
 
     await Supabase.initialize(
-      url: supabaseUrl,
-      anonKey: supabaseKey,
-      debug: false
+        url: supabaseUrl,
+        anonKey: supabaseKey,
+        debug: false
     );
     print("Supabase initialisé avec succès!");
   } catch (e, stackTrace) {
