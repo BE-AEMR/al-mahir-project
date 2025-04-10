@@ -10,12 +10,6 @@ jobs:
   build:
     runs-on: macos-latest
 
-    env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      SUPABASE_LOGIN_PASSWORD: ${{ secrets.SUPABASE_LOGIN_PASSWORD }}
-      SENDINBLUE_API_KEY: ${{ secrets.SENDINBLUE_API_KEY }}
-
     steps:
       - uses: actions/checkout@v3
 
@@ -31,10 +25,10 @@ jobs:
       # Créer le fichier .env à partir des secrets
       - name: Create .env file
         run: |
-          echo "SUPABASE_URL=${{ SUPABASE_URL}}" >> .env
-          echo "SUPABASE_KEY=${{ SUPABASE_KEY }}" >> .env
-          echo "SUPABASE_LOGIN_PASSWORD=${{ SUPABASE_LOGIN_PASSWORD }}" >> .env
-          echo "SENDINBLUE_API_KEY=${{ SENDINBLUE_API_KEY }}" >> .env
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+          echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
+          echo "SUPABASE_LOGIN_PASSWORD=${{ secrets.SUPABASE_LOGIN_PASSWORD }}" >> .env
+          echo "SENDINBLUE_API_KEY=${{ secrets.SENDINBLUE_API_KEY }}" >> .env
 
       - name: Install Flutter dependencies
         run: |
