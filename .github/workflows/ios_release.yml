@@ -22,24 +22,6 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
 
-      # Créer le fichier .env à partir des secrets
-      - name: Create .env file
-        run: |
-          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env
-          echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
-          echo "SUPABASE_LOGIN_PASSWORD=${{ secrets.SUPABASE_LOGIN_PASSWORD }}" >> .env
-          echo "SENDINBLUE_API_KEY=${{ secrets.SENDINBLUE_API_KEY }}" >> .env
-
-      - name: Show .env file content
-        run: |
-          if [ -f .env ]; then
-            echo ".env file found ✅"
-            echo "---- .env content ----"
-            cat .env
-          else
-            echo "❌ .env file NOT found"
-          fi
-
       - name: Install Flutter dependencies
         run: |
           flutter pub get
@@ -111,6 +93,26 @@ jobs:
 
       - name: Clean Derived Data
         run: rm -rf ~/Library/Developer/Xcode/DerivedData
+
+      # Créer le fichier .env à partir des secrets
+      - name: Create .env file
+        run: |
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env
+          echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
+          echo "SUPABASE_LOGIN_PASSWORD=${{ secrets.SUPABASE_LOGIN_PASSWORD }}" >> .env
+          echo "SENDINBLUE_API_KEY=${{ secrets.SENDINBLUE_API_KEY }}" >> .env
+          ls -l .env
+          ls
+
+      - name: Show .env file content
+        run: |
+          if [ -f .env ]; then
+            echo ".env file found ✅"
+            echo "---- .env content ----"
+            cat .env
+          else
+            echo "❌ .env file NOT found"
+          fi
 
       - name: Build iOS app
         run: |
