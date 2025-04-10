@@ -2,9 +2,9 @@ name: iOS Release
 
 on:
   push:
-    branches: [ "dev" ]
+    branches: [ "features/ios-release" ]
   pull_request:
-    branches: [ "dev" ]
+    branches: [ "features/ios-release" ]
 
 jobs:
   build:
