@@ -68,30 +68,22 @@ void main() async {
   _handleDeepLinks();
 }
 
-// Initialiser Supabase
+// Initialiser Supabase en arrière-plan
 Future<void> _initializeSupabase() async {
   try {
     print("Tentative d'initialisation de Supabase...");
+    final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
+    final supabaseKey = dotenv.env['SUPABASE_KEY'] ?? '';
 
-    // Essayer d'abord les valeurs de --dart-define
-    String supabaseUrl = const String.fromEnvironment('SUPABASE_URL', defaultValue: '');
-    String supabaseKey = const String.fromEnvironment('SUPABASE_KEY', defaultValue: '');
-
-    // Si vides, essayer le fichier .env
     if (supabaseUrl.isEmpty || supabaseKey.isEmpty) {
-      supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
-      supabaseKey = dotenv.env['SUPABASE_KEY'] ?? '';
-
-      if (supabaseUrl.isEmpty || supabaseKey.isEmpty) {
-        print("Erreur: URL ou clé Supabase manquante");
-        return;
-      }
+      print("Erreur: URL ou clé Supabase manquante dans le fichier .env");
+      return;
     }
 
     await Supabase.initialize(
-        url: supabaseUrl,
-        anonKey: supabaseKey,
-        debug: false
+      url: supabaseUrl,
+      anonKey: supabaseKey,
+      debug: false
     );
     print("Supabase initialisé avec succès!");
   } catch (e, stackTrace) {
