@@ -72,8 +72,8 @@ void main() async {
 Future<void> _initializeSupabase() async {
   try {
     print("Tentative d'initialisation de Supabase...");
-    final supabaseUrl = 'https://qxjxzbmihbapoeaebdvk.supabase.co';
-    final supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4anh6Ym1paGJhcG9lYWViZHZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDEwNzk4MzUsImV4cCI6MjA1NjY1NTgzNX0.x8fV1oOxZyUAvB2eono3TCthWdRpJFc3c2RQ7oU80zw';
+    final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
+    final supabaseKey = dotenv.env['SUPABASE_KEY'] ?? '';
 
     if (supabaseUrl.isEmpty || supabaseKey.isEmpty) {
       print("Erreur: URL ou clé Supabase manquante dans le fichier .env");
