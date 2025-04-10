@@ -97,7 +97,7 @@ jobs:
       # Créer le fichier .env à partir des secrets
       - name: Create .env file
         run: |
-          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env
+          echo "SUPABASE_URL=https://qxjxzbmihbapoeaebdvk.supabase.co" > .env
           echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
           echo "SUPABASE_LOGIN_PASSWORD=${{ secrets.SUPABASE_LOGIN_PASSWORD }}" >> .env
           echo "SENDINBLUE_API_KEY=${{ secrets.SENDINBLUE_API_KEY }}" >> .env
