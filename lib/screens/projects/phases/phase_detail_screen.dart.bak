@@ -1,0 +1,954 @@
+import 'package:flutter/material.dart';
+import '../../../models/phase_model.dart';
+import '../../../models/project_model.dart';
+import '../../../models/task_model.dart';
+import '../../../models/project_transaction_model.dart';
+import '../../../services/phase_service/phase_service.dart';
+import '../../../services/project_service/project_service.dart';
+import '../../../services/budget_service.dart';
+import '../../../services/role_service.dart';
+import '../../../services/user_service.dart';
+import '../../../widgets/islamic_patterns.dart';
+import '../../../widgets/budget_summary_widget.dart';
+import '../../../widgets/permission_gated.dart';
+import '../../tasks/task_form_screen.dart';
+import '../../tasks/task_detail_screen.dart';
+import '../../tasks/task_card.dart';
+import '../../budget/transaction_form_screen.dart';
+import 'phase_form.dart';
+import 'sub_phase_form.dart';
+
+class PhaseDetailScreen extends StatefulWidget {
+  final Project project;
+  final Phase phase;
+
+  const PhaseDetailScreen({
+    super.key,
+    required this.project,
+    required this.phase,
+  });
+
+  @override
+  State<PhaseDetailScreen> createState() => _PhaseDetailScreenState();
+}
+
+class _PhaseDetailScreenState extends State<PhaseDetailScreen> {
+  final PhaseService _phaseService = PhaseService();
+  final ProjectService _projectService = ProjectService();
+  final BudgetService _budgetService = BudgetService();
+  final RoleService _roleService = RoleService();
+  final UserService _userService = UserService();
+  
+  late Phase _phase;
+  List<Task> _tasks = [];
+  List<Phase> _subPhases = [];
+  List<ProjectTransaction> _phaseTransactions = [];
+  bool _isLoading = true;
+  bool _isLoadingBudget = true;
+  bool _isLoadingSubPhases = true;
+  
+  // Filtre de recherche et tri
+  String _searchQuery = '';
+  String? _statusFilter;
+  String? _priorityFilter;
+  String? _sortOption = 'newest';
+  
+  // Map pour stocker les noms d'utilisateurs
+  Map<String, String> _userDisplayNames = {};
+  
+  @override
+  void initState() {
+    super.initState();
+    _phase = widget.phase;
+    _loadData();
+    _loadBudgetData();
+    _loadSubPhases();
+  }
+  
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      // Charger les tâches directement associées à cette phase (pas à une sous-phase)
+      final tasks = await _projectService.getTasksByPhase(_phase.id);
+      final filteredTasks = tasks.where((task) => task.subPhaseId == null).toList();
+      
+      // Récupérer les informations des utilisateurs
+      final Set<String> userIds = {};
+      for (final task in filteredTasks) {
+        userIds.add(task.createdBy);
+        if (task.assignedTo != null) {
+          userIds.add(task.assignedTo!);
+        }
+      }
+      
+      final userDisplayNames = await _userService.getUsersDisplayNames(userIds.toList());
+      
+      setState(() {
+        _tasks = filteredTasks;
+        _userDisplayNames = userDisplayNames;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Erreur lors du chargement des tâches: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+  
+  Future<void> _loadSubPhases() async {
+    setState(() {
+      _isLoadingSubPhases = true;
+    });
+    
+    try {
+      // Charger les sous-phases associées à cette phase
+      final subPhases = await _phaseService.getSubPhasesByParentId(_phase.id);
+      
+      setState(() {
+        _subPhases = subPhases;
+        _isLoadingSubPhases = false;
+      });
+    } catch (e) {
+      print('Erreur lors du chargement des sous-phases: $e');
+      setState(() {
+        _isLoadingSubPhases = false;
+      });
+    }
+  }
+  
+  Future<void> _loadBudgetData() async {
+    setState(() {
+      _isLoadingBudget = true;
+    });
+    
+    try {
+      // Charger les transactions associées à cette phase
+      final transactions = await _budgetService.getTransactionsByPhase(_phase.id);
+      
+      setState(() {
+        _phaseTransactions = transactions;
+        _isLoadingBudget = false;
+      });
+    } catch (e) {
+      print('Erreur lors du chargement des données budgétaires: $e');
+      setState(() {
+        _isLoadingBudget = false;
+      });
+    }
+  }
+  
+  // Filtrer et trier les tâches en fonction des critères
+  List<Task> _filterTasks(List<Task> tasks) {
+    var filteredTasks = tasks;
+    
+    // Filtrer par recherche
+    if (_searchQuery.isNotEmpty) {
+      final lowerCaseQuery = _searchQuery.toLowerCase();
+      filteredTasks = filteredTasks.where((task) {
+        return task.title.toLowerCase().contains(lowerCaseQuery) || 
+               (task.description?.toLowerCase().contains(lowerCaseQuery) ?? false);
+      }).toList();
+    }
+    
+    // Filtrer par statut
+    if (_statusFilter != null) {
+      filteredTasks = filteredTasks.where((task) => task.status == _statusFilter).toList();
+    }
+    
+    // Filtrer par priorité
+    if (_priorityFilter != null) {
+      final priorityValue = TaskPriority.values
+          .firstWhere((p) => p.name == _priorityFilter!.toLowerCase())
+          .toValue();
+      filteredTasks = filteredTasks.where((task) => task.priority == priorityValue).toList();
+    }
+    
+    // Trier les tâches
+    if (_sortOption != null) {
+      switch (_sortOption) {
+        case 'newest':
+          filteredTasks.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          break;
+        case 'oldest':
+          filteredTasks.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+          break;
+        case 'deadline_asc':
+          filteredTasks.sort((a, b) {
+            if (a.dueDate == null && b.dueDate == null) return 0;
+            if (a.dueDate == null) return 1;
+            if (b.dueDate == null) return -1;
+            return a.dueDate!.compareTo(b.dueDate!);
+          });
+          break;
+        case 'deadline_desc':
+          filteredTasks.sort((a, b) {
+            if (a.dueDate == null && b.dueDate == null) return 0;
+            if (a.dueDate == null) return 1;
+            if (b.dueDate == null) return -1;
+            return b.dueDate!.compareTo(a.dueDate!);
+          });
+          break;
+      }
+    }
+    
+    return filteredTasks;
+  }
+      
+  @override
+  Widget build(BuildContext context) {
+    final phaseStatus = PhaseStatus.fromValue(_phase.status);
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors du chargement des données: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+  
+  // Charger les sous-phases associées à cette phase
+  Future<void> _loadSubPhases() async {
+    setState(() {
+      _isLoadingSubPhases = true;
+    });
+    
+    try {
+      // Récupérer les sous-phases
+      final subPhases = await _phaseService.getSubPhasesByParentId(_phase.id);
+      
+      setState(() {
+        _subPhases = subPhases;
+        _isLoadingSubPhases = false;
+      });
+    } catch (e) {
+      print('Erreur lors du chargement des sous-phases: $e');
+      setState(() {
+        _isLoadingSubPhases = false;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors du chargement des sous-phases: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+  
+  Future<void> _loadBudgetData() async {
+    setState(() {
+      _isLoadingBudget = true;
+    });
+    
+    try {
+      // Charger les transactions de la phase
+      final transactions = await _budgetService.getTransactionsByPhase(_phase.id);
+      
+      setState(() {
+        _phaseTransactions = transactions;
+        _isLoadingBudget = false;
+      });
+    } catch (e) {
+      print('Erreur lors du chargement des transactions: $e');
+      setState(() {
+        _isLoadingBudget = false;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors du chargement des transactions: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+  
+  void _showEditPhaseDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => PhaseForm(
+        projectId: widget.project.id,
+        phase: _phase,
+        onPhaseUpdated: (updatedPhase) {
+          setState(() {
+            _phase = updatedPhase;
+          });
+        },
+      ),
+    );
+  }
+  
+  void _showAddTaskDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => TaskForm(
+        projectId: widget.project.id,
+        phaseId: _phase.id,
+        onTaskCreated: (task) {
+          setState(() {
+            _tasks.add(task);
+          });
+        },
+      ),
+    );
+  }
+  
+  // Afficher le dialogue d'ajout de sous-phase
+  void _showAddSubPhaseDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => SubPhaseForm(
+        parentPhaseId: _phase.id,
+        onSubPhaseCreated: (subPhase) {
+          setState(() {
+            _subPhases.add(subPhase);
+          });
+          _loadSubPhases(); // Recharger la liste complète pour avoir l'ordre correct
+        },
+      ),
+    );
+  }
+  
+  // Afficher le dialogue de modification d'une sous-phase
+  void _showEditSubPhaseDialog(Phase subPhase) {
+    showDialog(
+      context: context,
+      builder: (context) => SubPhaseForm(
+        parentPhaseId: _phase.id,
+        subPhase: subPhase,
+        onSubPhaseUpdated: (updatedSubPhase) {
+          setState(() {
+            final index = _subPhases.indexWhere((p) => p.id == updatedSubPhase.id);
+            if (index != -1) {
+              _subPhases[index] = updatedSubPhase;
+            }
+          });
+        },
+      ),
+    );
+  }
+  
+  // Supprimer une sous-phase
+  Future<void> _deleteSubPhase(String subPhaseId) async {
+    try {
+      await _phaseService.deletePhase(subPhaseId);
+      
+      // Recharger la liste des sous-phases
+      _loadSubPhases();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sous-phase supprimée avec succès'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Erreur lors de la suppression de la sous-phase: $e');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de la suppression de la sous-phase: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+  
+  Future<void> _deletePhase() async {
+    try {
+      await _phaseService.deletePhase(_phase.id);
+      
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Phase supprimée avec succès'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Erreur lors de la suppression de la phase: $e');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de la suppression de la phase: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    final isSmallScreen = MediaQuery.of(context).size.width < 600;
+    final phaseStatus = PhaseStatus.fromValue(_phase.status);
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_phase.name),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: _showEditPhaseDialog,
+            tooltip: 'Modifier la phase',
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Supprimer la phase'),
+                  content: const Text(
+                    'Êtes-vous sûr de vouloir supprimer cette phase ? '
+                    'Les tâches associées à cette phase seront dissociées mais pas supprimées.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Annuler'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _deletePhase();
+                      },
+                      child: const Text(
+                        'Supprimer',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+            tooltip: 'Supprimer la phase',
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadData,
+            tooltip: 'Actualiser',
+          ),
+        ],
+      ),
+      floatingActionButton: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton(
+            onPressed: _showAddSubPhaseDialog,
+            heroTag: 'add_sub_phase',
+            backgroundColor: Colors.teal,
+            child: const Icon(Icons.category),
+            tooltip: 'Ajouter une sous-phase',
+          ),
+          const SizedBox(width: 16),
+          FloatingActionButton(
+            onPressed: _showAddTaskDialog,
+            heroTag: 'add_task',
+            child: const Icon(Icons.add_task),
+            tooltip: 'Ajouter une tâche',
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              child: Padding(
+                padding: EdgeInsets.all(isSmallScreen ? 16.0 : 24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Informations sur la phase
+                    Card(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: phaseStatus.getColor().withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    phaseStatus.getText(),
+                                    style: TextStyle(
+                                      color: phaseStatus.getColor(),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  'Projet: ${widget.project.name}',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Description',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(_phase.description.isNotEmpty
+                                ? _phase.description
+                                : 'Aucune description'),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                const Icon(Icons.calendar_today, size: 16),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Créée le ${_phase.createdAt.day}/${_phase.createdAt.month}/${_phase.createdAt.year}',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Section budget
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Budget',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => TransactionFormScreen(
+                                  phaseId: _phase.id,
+                                  projectId: widget.project.id,
+                                ),
+                              ),
+                            );
+                            
+                            if (result != null) {
+                              _loadBudgetData();
+                            }
+                          },
+                          icon: const Icon(Icons.add),
+                          label: const Text('Ajouter une transaction'),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    _isLoadingBudget
+                        ? const Center(child: CircularProgressIndicator())
+                        : BudgetSummaryWidget(
+                            budgetAllocated: _phase.budgetAllocated,
+                            budgetConsumed: _phase.budgetConsumed,
+                            transactions: _phaseTransactions,
+                            projectId: widget.project.id,
+                            phaseId: _phase.id,
+                            onTransactionAdded: (transaction) {
+                              setState(() {
+                                _phaseTransactions.add(transaction);
+                                // Mettre à jour le budget consommé
+                                if (transaction.amount < 0) {
+                                  _phase = _phase.copyWith(
+                                    budgetConsumed: (_phase.budgetConsumed ?? 0) + transaction.amount.abs(),
+                                  );
+                                }
+                              });
+                              _loadBudgetData();
+                            },
+                            onTransactionUpdated: (transaction) {
+                              setState(() {
+                                final index = _phaseTransactions.indexWhere((t) => t.id == transaction.id);
+                                if (index != -1) {
+                                  _phaseTransactions[index] = transaction;
+                                }
+                              });
+                              _loadBudgetData();
+                            },
+                          ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Section des sous-phases
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Sous-phases',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: _showAddSubPhaseDialog,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Ajouter une sous-phase'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.teal,
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    _isLoadingSubPhases
+                        ? const Center(child: CircularProgressIndicator())
+                        : _subPhases.isEmpty
+                            ? Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24.0),
+                                  child: Column(
+                                    children: [
+                                      IslamicPattern(
+                                        pattern: Pattern.octagonal,
+                                        color: Colors.teal.withOpacity(0.2),
+                                        size: 80,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'Aucune sous-phase',
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      ElevatedButton.icon(
+                                        onPressed: _showAddSubPhaseDialog,
+                                        icon: const Icon(Icons.add),
+                                        label: const Text('Ajouter une sous-phase'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.teal,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            : Card(
+                                elevation: 2,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${_subPhases.length} sous-phase${_subPhases.length > 1 ? 's' : ''}',
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      ListView.builder(
+                                        shrinkWrap: true,
+                                        physics: const NeverScrollableScrollPhysics(),
+                                        itemCount: _subPhases.length,
+                                        itemBuilder: (context, index) {
+                                          final subPhase = _subPhases[index];
+                                          final subPhaseStatus = PhaseStatus.fromValue(subPhase.status);
+                                          
+                                          return ListTile(
+                                            leading: CircleAvatar(
+                                              backgroundColor: subPhaseStatus.getColor().withOpacity(0.2),
+                                              child: Icon(
+                                                Icons.category, 
+                                                color: subPhaseStatus.getColor(),
+                                              ),
+                                            ),
+                                            title: Text(subPhase.name),
+                                            subtitle: Text(
+                                              subPhase.description.isEmpty
+                                                  ? 'Aucune description'
+                                                  : subPhase.description.length > 50
+                                                      ? '${subPhase.description.substring(0, 50)}...'
+                                                      : subPhase.description,
+                                            ),
+                                            trailing: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                IconButton(
+                                                  icon: const Icon(Icons.edit, size: 20),
+                                                  onPressed: () => _showEditSubPhaseDialog(subPhase),
+                                                  tooltip: 'Modifier la sous-phase',
+                                                ),
+                                                IconButton(
+                                                  icon: const Icon(Icons.delete, size: 20),
+                                                  onPressed: () {
+                                                    showDialog(
+                                                      context: context,
+                                                      builder: (context) => AlertDialog(
+                                                        title: const Text('Supprimer la sous-phase'),
+                                                        content: const Text(
+                                                          'Êtes-vous sûr de vouloir supprimer cette sous-phase ? '
+                                                          'Les tâches associées à cette sous-phase seront dissociées mais pas supprimées.',
+                                                        ),
+                                                        actions: [
+                                                          TextButton(
+                                                            onPressed: () => Navigator.pop(context),
+                                                            child: const Text('Annuler'),
+                                                          ),
+                                                          TextButton(
+                                                            onPressed: () {
+                                                              Navigator.pop(context);
+                                                              _deleteSubPhase(subPhase.id);
+                                                            },
+                                                            child: const Text(
+                                                              'Supprimer',
+                                                              style: TextStyle(color: Colors.red),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                  },
+                                                  tooltip: 'Supprimer la sous-phase',
+                                                ),
+                                              ],
+                                            ),
+                                            onTap: () {
+                                              // On pourrait ajouter ici un lien vers un écran de détail de sous-phase
+                                              // ou afficher un dialogue avec plus d'infos sur la sous-phase
+                                              _showEditSubPhaseDialog(subPhase);
+                                            },
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              
+                    const SizedBox(height: 24),
+                    
+                    // Liste des tâches
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Tâches',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        Text(
+                          '${_tasks.length} tâche${_tasks.length > 1 ? 's' : ''}',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    _tasks.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24.0),
+                              child: Column(
+                                children: [
+                                  IslamicPattern(
+                                    pattern: Pattern.star,
+                                    color: Colors.grey.withOpacity(0.2),
+                                    size: 80,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Aucune tâche directement associée à cette phase',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Vous pouvez ajouter des tâches directement à cette phase ou à l\'une de ses sous-phases',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 12,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  ElevatedButton.icon(
+                                    onPressed: _showAddTaskDialog,
+                                    icon: const Icon(Icons.add),
+                                    label: const Text('Ajouter une tâche'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _tasks.length,
+                            itemBuilder: (context, index) {
+                              final task = _tasks[index];
+                              return TaskCard(
+                                task: task,
+                                project: widget.project,
+                                onTaskTapped: () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => TaskDetailScreen(
+                                        task: task,
+                                        project: widget.project,
+                                                _tasks[index] = updatedTask;
+                                              }
+                                            });
+                                          },
+                                          onTaskDeleted: (deletedTask) {
+                                            setState(() {
+                                              _tasks.removeWhere((t) => t.id == deletedTask.id);
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                task.title,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                            ),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 8,
+                                                vertical: 4,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: taskStatus.getColor().withOpacity(0.2),
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: Text(
+                                                taskStatus.getText(),
+                                                style: TextStyle(
+                                                  color: taskStatus.getColor(),
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          task.description,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          children: [
+                                            if (task.dueDate != null) ...[
+                                              const Icon(Icons.calendar_today, size: 14),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '${task.dueDate!.day}/${task.dueDate!.month}/${task.dueDate!.year}',
+                                                style: const TextStyle(fontSize: 12),
+                                              ),
+                                              const SizedBox(width: 16),
+                                            ],
+                                            const Icon(Icons.person_outline, size: 14),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              task.assignedTo ?? 'Non assigné',
+                                              style: const TextStyle(fontSize: 12),
+                                            ),
+                                            const Spacer(),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 8,
+                                                vertical: 4,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: taskPriority.getColor().withOpacity(0.2),
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: Text(
+                                                taskPriority.getText(),
+                                                style: TextStyle(
+                                                  color: taskPriority.getColor(),
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+}

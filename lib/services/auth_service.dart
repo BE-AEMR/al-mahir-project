@@ -19,7 +19,7 @@ class AuthService {
   Future<String?> getCurrentUserId() async {
     return currentUser?.id;
   }
-  
+
   // Obtenir l'ID de l'utilisateur actuel de manière synchrone
   String? getCurrentUserIdSync() {
     return currentUser?.id;
@@ -55,8 +55,9 @@ class AuthService {
       final response = await _client.auth.signUp(
         email: email,
         password: password,
+        emailRedirectTo: 'almahir://account-confirmation', // URL deeplink pour la confirmation de compte
       );
-      
+
       // Ajouter le displayName au profil utilisateur
       if (response.user != null) {
         await _client.from('profiles').update({
@@ -64,7 +65,7 @@ class AuthService {
         }).eq('id', response.user!.id);
         print('Profil utilisateur mis à jour avec le nom d\'affichage: $displayName');
       }
-      
+
       print('Inscription réussie: ${response.user?.email}');
       return response;
     } catch (e) {
@@ -84,12 +85,15 @@ class AuthService {
       rethrow;
     }
   }
-  
+
   // Réinitialisation de mot de passe
   Future<void> resetPassword({required String email}) async {
     try {
       print('Tentative d\'envoi de réinitialisation de mot de passe pour: $email');
-      await _client.auth.resetPasswordForEmail(email);
+      await _client.auth.resetPasswordForEmail(
+        email,
+        redirectTo: 'almahir://reset-password', // URL deeplink pour les applications mobiles
+      );
       print('Email de réinitialisation envoyé avec succès');
     } catch (e) {
       print('Erreur lors de l\'envoi de l\'email de réinitialisation: $e');

@@ -41,29 +41,31 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   final PhaseService _phaseService = PhaseService();
   final BudgetService _budgetService = BudgetService();
   final RoleService _roleService = RoleService();
-  
+
   Project? _project;
   List<Task> _tasks = [];
   List<Team> _projectTeams = [];
   List<Phase> _projectPhases = [];
+  List<Phase> _projectSubPhases = [];
   List<ProjectTransaction> _projectTransactions = [];
-  
+
   bool _isLoading = true;
   bool _isLoadingTeams = true;
   bool _isLoadingPhases = true;
   bool _isLoadingBudget = true;
-  bool _hasProjectAccess = false; 
+  bool _hasProjectAccess = false;
   String? _errorMessage;
-  
-  // État des phases dépliées/repliées
+
+  // Suivi de l'état d'expansion des phases et sous-phases
   final Map<String, bool> _expandedPhases = {};
-  
+  final Map<String, bool> _expandedSubPhases = {};
+
   // Cartes des filtres et recherche par phase - stocke les états de filtre pour chaque phase
   final Map<String, String> _searchQueries = {};
   final Map<String, String?> _statusFilters = {};
   final Map<String, String?> _priorityFilters = {};
   final Map<String, String?> _sortOptions = {};
-  
+
   // Variables pour les tâches sans phase
   String _noPhaseSearchQuery = '';
   String? _noPhaseStatusFilter;
@@ -73,11 +75,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   // Map pour stocker les noms d'utilisateurs
   Map<String, String> _userDisplayNames = {};
   List<Team> _assignedTeams = [];
-  
+
   @override
   void initState() {
     super.initState();
-    _checkProjectAccess(); 
+    _checkProjectAccess();
   }
 
   /// Vérifie si l'utilisateur a accès au projet actuel
@@ -90,66 +92,66 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     try {
       // Récupérer les rôles de l'utilisateur avec les projets associés
       final userRolesDetails = await _roleService.getUserRolesDetails();
-      
+
       // Vérifier si l'utilisateur a un rôle system_admin (accès global)
       final isSystemAdmin = userRolesDetails.any((role) => role['role_name'] == 'system_admin');
-      
+
       // Si l'utilisateur est admin système, il a un accès complet
       if (isSystemAdmin) {
         print('DEBUG: Utilisateur system_admin, accès au projet accordé');
         setState(() {
           _hasProjectAccess = true;
         });
-        _loadProjectDetails(); 
+        _loadProjectDetails();
         return;
       }
-      
+
       // Vérifier si l'utilisateur a une permission directe sur ce projet spécifique
       final hasProjectPermission = await _roleService.hasPermission(
-        'read_project',
-        projectId: widget.projectId
+          'read_project',
+          projectId: widget.projectId
       );
-      
+
       if (hasProjectPermission) {
         print('DEBUG: Utilisateur a une permission directe sur ce projet');
         setState(() {
           _hasProjectAccess = true;
         });
-        _loadProjectDetails(); 
+        _loadProjectDetails();
         return;
       }
-      
+
       // Vérifier si l'utilisateur a un rôle associé à ce projet spécifique
-      final hasProjectRole = userRolesDetails.any((role) => 
-        role['project_id'] == widget.projectId
+      final hasProjectRole = userRolesDetails.any((role) =>
+      role['project_id'] == widget.projectId
       );
-      
+
       if (hasProjectRole) {
         print('DEBUG: Utilisateur a un rôle associé à ce projet');
         setState(() {
           _hasProjectAccess = true;
         });
-        _loadProjectDetails(); 
+        _loadProjectDetails();
         return;
       }
-      
+
       // Vérifier si l'utilisateur pourrait accéder via une équipe associée au projet
       final hasTeamAccess = await _checkTeamProjectAccess();
-      
+
       if (hasTeamAccess) {
         setState(() {
           _hasProjectAccess = true;
         });
-        _loadProjectDetails(); 
+        _loadProjectDetails();
         return;
       }
-      
+
       // Aucun accès trouvé
       setState(() {
         _hasProjectAccess = false;
         _isLoading = false;
       });
-      
+
     } catch (e) {
       print('ERROR: Erreur lors de la vérification de l\'accès au projet: $e');
       setState(() {
@@ -159,30 +161,30 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       });
     }
   }
-  
+
   /// Vérifie si l'utilisateur a accès au projet via une équipe
   Future<bool> _checkTeamProjectAccess() async {
     try {
       // Récupérer les équipes associées au projet
       final projectTeams = await _teamService.getTeamsByProject(widget.projectId);
-      
+
       if (projectTeams.isEmpty) {
         return false;
       }
-      
+
       // Vérifier pour chaque équipe si l'utilisateur a la permission read_project dans cette équipe
       for (final team in projectTeams) {
         final hasTeamPermission = await _roleService.hasPermission(
-          'read_project',
-          teamId: team.id
+            'read_project',
+            teamId: team.id
         );
-        
+
         if (hasTeamPermission) {
           print('DEBUG: Utilisateur a accès au projet via l\'équipe ${team.id}');
           return true;
         }
       }
-      
+
       return false;
     } catch (e) {
       print('ERROR: Erreur lors de la vérification de l\'accès via équipes: $e');
@@ -199,13 +201,13 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     try {
       final project = await _projectService.getProjectById(widget.projectId);
       final tasks = await _projectService.getTasksByProject(widget.projectId);
-      
+
       setState(() {
         _project = project;
         _tasks = tasks;
         _isLoading = false;
       });
-      
+
       // Récupérer tous les IDs d'utilisateurs (créateurs et assignés)
       final Set<String> userIds = {project.createdBy};
       for (final task in tasks) {
@@ -214,16 +216,16 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           userIds.add(task.assignedTo!);
         }
       }
-      
+
       // Récupérer les noms d'affichage en une seule requête
       final userDisplayNames = await _userService.getUsersDisplayNames(userIds.toList());
       setState(() {
         _userDisplayNames = userDisplayNames;
       });
-      
+
       // Charger les équipes et les phases en parallèle
       _loadProjectTeams();
-      
+
       // Charger les phases en premier, puis le budget après, car la mise à jour du budget
       // dépend des phases déjà chargées
       await _loadProjectPhases();
@@ -235,12 +237,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       });
     }
   }
-  
+
   Future<void> _loadProjectTeams() async {
     setState(() {
       _isLoadingTeams = true;
     });
-    
+
     try {
       final teams = await _teamService.getTeamsByProject(widget.projectId);
       setState(() {
@@ -264,15 +266,31 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     });
 
     try {
+      // Charger les phases principales
       final phases = await _phaseService.getPhasesByProject(_project!.id);
-      
+
+      // Charger toutes les sous-phases
+      final allSubPhases = <Phase>[];
+
+      // Pour chaque phase principale, charger ses sous-phases
+      for (final phase in phases) {
+        final subPhases = await _phaseService.getSubPhasesByParentId(phase.id);
+        allSubPhases.addAll(subPhases);
+      }
+
       setState(() {
         _projectPhases = phases;
+        _projectSubPhases = allSubPhases;
         _isLoadingPhases = false;
-        
+
         // Initialiser toutes les phases comme repliées par défaut
         for (var phase in _projectPhases) {
           _expandedPhases[phase.id] = false;
+        }
+
+        // Initialiser toutes les sous-phases comme repliées par défaut
+        for (var subPhase in _projectSubPhases) {
+          _expandedSubPhases[subPhase.id] = false;
         }
       });
     } catch (e) {
@@ -280,6 +298,18 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         _isLoadingPhases = false;
         _errorMessage = 'Erreur lors du chargement des phases: $e';
       });
+    }
+  }
+
+  // Charge les tâches du projet (utilisé pour actualiser après ajout/modification de tâches)
+  Future<void> _loadProjectTasks() async {
+    try {
+      final tasks = await _projectService.getTasksByProject(widget.projectId);
+      setState(() {
+        _tasks = tasks;
+      });
+    } catch (e) {
+      print('Erreur lors du chargement des tâches: $e');
     }
   }
 
@@ -292,11 +322,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
     try {
       final transactions = await _budgetService.getTransactionsByProject(_project!.id);
-      
+
       setState(() {
         _projectTransactions = transactions;
         _isLoadingBudget = false;
-        
+
         // Mettre à jour les budgets des phases avec les données de transactions
         _updatePhasesBudgetFromTransactions();
       });
@@ -312,7 +342,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   void _updatePhasesBudgetFromTransactions() {
     // Créer une map pour suivre les transactions de chaque phase
     Map<String, List<ProjectTransaction>> transactionsByPhase = {};
-    
+
     // Regrouper les transactions par phase
     for (var transaction in _projectTransactions) {
       if (transaction.phaseId != null) {
@@ -322,48 +352,48 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         transactionsByPhase[transaction.phaseId!]!.add(transaction);
       }
     }
-    
+
     // Mettre à jour les données budgétaires pour chaque phase
     List<Phase> updatedPhases = [];
-    
+
     for (var phase in _projectPhases) {
       double budgetAllocated = phase.budgetAllocated ?? 0;
       double budgetConsumed = phase.budgetConsumed ?? 0;
-      
+
       // Si la phase a des transactions, recalculer ses données budgétaires
       if (transactionsByPhase.containsKey(phase.id)) {
         final phaseTransactions = transactionsByPhase[phase.id]!;
-        
+
         // Pour le budget alloué, utiliser soit la valeur existante, soit calculer à partir des revenus
         if (budgetAllocated == 0) {
           double allocatedFromTransactions = phaseTransactions
               .where((tx) => tx.isIncome)
               .fold(0.0, (sum, tx) => sum + tx.absoluteAmount);
-          
+
           if (allocatedFromTransactions > 0) {
             budgetAllocated = allocatedFromTransactions;
           }
         }
-        
+
         // Pour le budget consommé, utiliser soit la valeur existante, soit calculer à partir des dépenses
         // IMPORTANT: Assurons-nous que budgetConsumed est bien la valeur CONSOMMÉE (dépensée) et non le reste
         budgetConsumed = phaseTransactions
             .where((tx) => !tx.isIncome)
             .fold(0.0, (sum, tx) => sum + tx.absoluteAmount);
       }
-      
+
       // Si le budget alloué est toujours 0 mais que nous avons un budget de projet, allouer une part égale à chaque phase
       if (budgetAllocated == 0 && _project!.budgetAllocated != null && _project!.budgetAllocated! > 0) {
         budgetAllocated = _project!.budgetAllocated! / _projectPhases.length;
       }
-      
+
       // Mettre à jour la phase avec les nouvelles valeurs budgétaires
       updatedPhases.add(phase.copyWith(
         budgetAllocated: budgetAllocated,
         budgetConsumed: budgetConsumed,
       ));
     }
-    
+
     // Mettre à jour la liste des phases
     setState(() {
       _projectPhases = updatedPhases;
@@ -376,17 +406,17 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     if (searchQuery.isEmpty && statusFilter == null && priorityFilter == null && (sortOption == null || sortOption.isEmpty)) {
       return tasks;
     }
-    
+
     // Filtrer par terme de recherche
     var filteredTasks = tasks;
     if (searchQuery.isNotEmpty) {
       final lowerCaseQuery = searchQuery.toLowerCase();
       filteredTasks = filteredTasks.where((task) {
-        return task.title.toLowerCase().contains(lowerCaseQuery) || 
-               (task.description?.toLowerCase().contains(lowerCaseQuery) ?? false);
+        return task.title.toLowerCase().contains(lowerCaseQuery) ||
+            (task.description?.toLowerCase().contains(lowerCaseQuery) ?? false);
       }).toList();
     }
-    
+
     // Filtrer par statut
     if (statusFilter != null && statusFilter.isNotEmpty) {
       filteredTasks = filteredTasks.where((task) {
@@ -397,7 +427,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         return task.status == statusFilter;
       }).toList();
     }
-    
+
     // Filtrer par priorité
     if (priorityFilter != null && priorityFilter.isNotEmpty) {
       // Conversion de la chaîne de priorité en valeur numérique
@@ -416,12 +446,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           priorityValue = 3; // TaskPriority.urgent.value
           break;
       }
-      
+
       if (priorityValue != null) {
         filteredTasks = filteredTasks.where((task) => task.priority == priorityValue).toList();
       }
     }
-    
+
     // Trier les tâches
     if (sortOption != null && sortOption.isNotEmpty) {
       switch (sortOption) {
@@ -449,7 +479,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           break;
       }
     }
-    
+
     return filteredTasks;
   }
 
@@ -494,36 +524,36 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? _buildErrorWidget()
-              : !_hasProjectAccess
-                  ? _buildAccessDeniedWidget()
-                  : _buildProjectDetails(),
+          ? _buildErrorWidget()
+          : !_hasProjectAccess
+          ? _buildAccessDeniedWidget()
+          : _buildProjectDetails(),
       floatingActionButton: _hasProjectAccess && _project != null
-        ? PermissionGated(
-            permissionName: 'create_phase',
-            projectId: widget.projectId,
-            child: FloatingActionButton(
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => PhasesScreen(
-                      project: _project!,
-                    ),
-                  ),
-                );
-                if (result == true) {
-                  _loadProjectPhases();
-                }
-              },
-              tooltip: 'Ajouter une phase',
-              child: const Icon(Icons.add),
-            ),
-          )
-        : null,
+          ? PermissionGated(
+        permissionName: 'create_phase',
+        projectId: widget.projectId,
+        child: FloatingActionButton(
+          onPressed: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PhasesScreen(
+                  project: _project!,
+                ),
+              ),
+            );
+            if (result == true) {
+              _loadProjectPhases();
+            }
+          },
+          tooltip: 'Ajouter une phase',
+          child: const Icon(Icons.add),
+        ),
+      )
+          : null,
     );
   }
-  
+
   Widget _buildAccessDeniedWidget() {
     return Center(
       child: Column(
@@ -558,7 +588,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       ),
     );
   }
-  
+
   Widget _buildErrorWidget() {
     return Center(
       child: Column(
@@ -591,7 +621,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       ),
     );
   }
-  
+
   Widget _buildProjectDetails() {
     return RefreshIndicator(
       onRefresh: () async {
@@ -618,12 +648,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   Widget _buildProjectHeader() {
     // Calculer les statistiques du projet
     final totalTasks = _tasks.length;
-    final completedTasks = _tasks.where((task) => 
-        TaskStatus.fromValue(task.status) == TaskStatus.completed).length;
+    final completedTasks = _tasks.where((task) =>
+    TaskStatus.fromValue(task.status) == TaskStatus.completed).length;
     final totalPhases = _projectPhases.length;
-    final completedPhases = _projectPhases.where((phase) => 
-        PhaseStatus.fromValue(phase.status) == PhaseStatus.completed).length;
-    
+    final completedPhases = _projectPhases.where((phase) =>
+    PhaseStatus.fromValue(phase.status) == PhaseStatus.completed).length;
+
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(
@@ -749,11 +779,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             _buildInfoRow('Créé le', _formatDate(_project!.createdAt)),
             if (_project!.updatedAt != null)
               _buildInfoRow('Mis à jour le', _formatDate(_project!.updatedAt!)),
-            
+
             const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 8),
-            
+
             // Section des équipes
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -779,38 +809,38 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             _isLoadingTeams
                 ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
                 : _projectTeams.isEmpty
-                    ? const Text(
-                        'Aucune équipe assignée à ce projet',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      )
-                    : Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _projectTeams.map((team) => Chip(
-                          avatar: CircleAvatar(
-                            backgroundColor: Theme.of(context).primaryColor,
-                            child: Text(
-                              team.name.substring(0, 1).toUpperCase(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          label: Text(team.name),
-                          backgroundColor: Colors.grey[200],
-                        )).toList(),
-                      ),
+                ? const Text(
+              'Aucune équipe assignée à ce projet',
+              style: TextStyle(
+                color: Colors.grey,
+                fontStyle: FontStyle.italic,
+              ),
+            )
+                : Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _projectTeams.map((team) => Chip(
+                avatar: CircleAvatar(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  child: Text(
+                    team.name.substring(0, 1).toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                label: Text(team.name),
+                backgroundColor: Colors.grey[200],
+              )).toList(),
+            ),
           ],
         ),
       ),
     );
   }
-  
+
   Widget _buildPhasesWithTasksSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -904,11 +934,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         else
           ...List.generate(
             _projectPhases.length,
-            (index) => _buildPhaseWithTasksCard(_projectPhases[index]),
+                (index) => _buildPhaseWithTasksCard(_projectPhases[index]),
           ),
-        
-        // Afficher les tâches sans phase à la fin
-        if (!_isLoading && _tasks.isNotEmpty)
+
+        // Afficher les tâches sans phase à la fin (seulement s'il y a des phases configurées)
+        if (!_isLoading && _tasks.isNotEmpty && _projectPhases.isNotEmpty)
           Column(
             children: [
               const SizedBox(height: 24),
@@ -923,10 +953,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     final phaseStatus = PhaseStatus.fromValue(phase.status);
     final tasks = _tasks.where((task) => task.phaseId == phase.id).toList();
     final completedTasks = tasks.where((task) => TaskStatus.fromValue(task.status) == TaskStatus.completed).length;
-    
+
     // Vérifier si cette phase est dépliée ou repliée
     final isExpanded = _expandedPhases[phase.id] ?? false;
-    
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
@@ -1057,7 +1087,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               ),
             ),
           ),
-          
+
           // Progression de la phase - toujours visible
           if (tasks.isNotEmpty)
             Padding(
@@ -1100,7 +1130,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 ],
               ),
             ),
-          
+
           // Budget de la phase - si des données budgétaires sont disponibles
           if (phase.budgetAllocated != null && phase.budgetAllocated! > 0 && phase.budgetConsumed != null)
             Padding(
@@ -1143,7 +1173,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 ],
               ),
             ),
-          
+
           // Liste des tâches - visible uniquement si déplié
           AnimatedCrossFade(
             firstChild: const SizedBox(height: 0),
@@ -1159,10 +1189,243 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     );
   }
 
+  // Construction de la carte d'une sous-phase avec ses tâches
+  Widget _buildSubPhaseWithTasksCard(Phase subPhase, Phase parentPhase) {
+    final subPhaseStatus = PhaseStatus.fromValue(subPhase.status);
+    final tasks = _tasks.where((task) => task.subPhaseId == subPhase.id).toList();
+    final completedTasks = tasks.where((task) => TaskStatus.fromValue(task.status) == TaskStatus.completed).length;
+
+    // Vérifier si cette sous-phase est dépliée ou repliée
+    final isExpanded = _expandedSubPhases[subPhase.id] ?? false;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12, left: 16, right: 0),
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: subPhaseStatus.getColor().withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // En-tête de la sous-phase - cliquable pour replier/déplier
+          InkWell(
+            onTap: () {
+              setState(() {
+                _expandedSubPhases[subPhase.id] = !isExpanded;
+              });
+            },
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(8),
+              topRight: Radius.circular(8),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: subPhaseStatus.getColor().withOpacity(0.1),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(8),
+                  topRight: Radius.circular(8),
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 3,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: subPhaseStatus.getColor(),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                subPhase.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: subPhaseStatus.getColor().withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: subPhaseStatus.getColor(),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                subPhaseStatus.getText(),
+                                style: TextStyle(
+                                  color: subPhaseStatus.getColor(),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (subPhase.description.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            subPhase.description,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  // Icône de flèche pour indiquer l'état replié/déplié
+                  IconButton(
+                    icon: Icon(isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, size: 20),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () {
+                      setState(() {
+                        _expandedSubPhases[subPhase.id] = !isExpanded;
+                      });
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
+            ),
+          ),
+
+          // Progression de la sous-phase - toujours visible
+          if (tasks.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.fromLTRB(12, 6, 12, isExpanded ? 0 : 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Progression: $completedTasks/${tasks.length}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            Text(
+                              '${(completedTasks / tasks.length * 100).toStringAsFixed(0)}%',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        LinearProgressIndicator(
+                          value: tasks.isEmpty ? 0 : completedTasks / tasks.length,
+                          backgroundColor: Colors.grey[300],
+                          valueColor: AlwaysStoppedAnimation<Color>(subPhaseStatus.getColor()),
+                          minHeight: 4,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Liste des tâches - visible uniquement si déplié
+          AnimatedCrossFade(
+            firstChild: const SizedBox(height: 0),
+            secondChild: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Tâches de la sous-phase
+                  if (tasks.isEmpty)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Text(
+                          'Aucune tâche dans cette sous-phase',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                        ),
+                      ),
+                    )
+                  else
+                    ...tasks.map((task) => _buildTaskCard(task)).toList(),
+
+                  // Bouton pour ajouter une tâche dans cette sous-phase
+                  Center(
+                    child: PermissionGated(
+                      permissionName: 'create_task',
+                      projectId: parentPhase.projectId,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => TaskFormScreen(
+                                projectId: parentPhase.projectId,
+                                phaseId: parentPhase.id,
+                                subPhaseId: subPhase.id,
+                              ),
+                            ),
+                          ).then((value) {
+                            if (value == true) {
+                              // Actualiser toutes les données du projet pour maintenir la cohérence
+                              _loadProjectDetails();
+                            }
+                          });
+                        },
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('Ajouter une tâche'),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          textStyle: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            crossFadeState: isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 300),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTasksSection(Phase phase) {
     // Récupérer toutes les tâches de cette phase
     final allPhaseTasks = _tasks.where((task) => task.phaseId == phase.id).toList();
-    
+
     // Initialiser les filtres pour cette phase si nécessaire
     if (!_searchQueries.containsKey(phase.id)) {
       _searchQueries[phase.id] = '';
@@ -1176,16 +1439,28 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     if (!_sortOptions.containsKey(phase.id)) {
       _sortOptions[phase.id] = 'newest';
     }
-    
+
     // Appliquer les filtres et le tri
-    final tasks = _filterTasks(
+    final filteredTasks = _filterTasks(
       allPhaseTasks,
       _searchQueries[phase.id] ?? '',
       _statusFilters[phase.id],
       _priorityFilters[phase.id],
       _sortOptions[phase.id],
     );
-    
+
+    // Récupérer les sous-phases associées à cette phase
+    final subPhases = _projectSubPhases.where((subPhase) => subPhase.parentPhaseId == phase.id).toList();
+
+    // Séparer les tâches avec et sans sous-phase
+    final tasksWithSubPhase = filteredTasks.where((task) =>
+    task.subPhaseId != null &&
+        subPhases.any((subPhase) => subPhase.id == task.subPhaseId)
+    ).toList();
+
+    // Uniquement les tâches de cette phase qui n'ont PAS de sous-phase assignée
+    final tasksWithoutSubPhase = filteredTasks.where((task) => task.subPhaseId == null).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1214,7 +1489,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   }
                   return;
                 }
-                
+
                 final result = await Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -1230,7 +1505,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             ),
           ],
         ),
-        
+
         // Barre de recherche
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -1254,7 +1529,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             controller: TextEditingController(text: _searchQueries[phase.id]),
           ),
         ),
-        
+
         // Options de filtrage et tri
         Padding(
           padding: const EdgeInsets.only(bottom: 8.0),
@@ -1299,12 +1574,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         _statusFilters[phase.id] == null
                             ? 'Statut'
                             : _statusFilters[phase.id] == 'todo'
-                                ? 'À faire'
-                                : _statusFilters[phase.id] == 'in_progress'
-                                    ? 'En cours'
-                                    : _statusFilters[phase.id] == 'review'
-                                        ? 'En révision'
-                                        : 'Terminée',
+                            ? 'À faire'
+                            : _statusFilters[phase.id] == 'in_progress'
+                            ? 'En cours'
+                            : _statusFilters[phase.id] == 'review'
+                            ? 'En révision'
+                            : 'Terminée',
                       ),
                       deleteIcon: _statusFilters[phase.id] == null
                           ? null
@@ -1312,14 +1587,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                       onDeleted: _statusFilters[phase.id] == null
                           ? null
                           : () {
-                              setState(() {
-                                _statusFilters[phase.id] = null;
-                              });
-                            },
+                        setState(() {
+                          _statusFilters[phase.id] = null;
+                        });
+                      },
                     ),
                   ),
                 ),
-                
+
                 // Filtre par priorité
                 Container(
                   padding: const EdgeInsets.only(right: 8.0),
@@ -1357,12 +1632,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         _priorityFilters[phase.id] == null
                             ? 'Priorité'
                             : _priorityFilters[phase.id] == 'low'
-                                ? 'Basse'
-                                : _priorityFilters[phase.id] == 'medium'
-                                    ? 'Moyenne'
-                                    : _priorityFilters[phase.id] == 'high'
-                                        ? 'Haute'
-                                        : 'Urgente',
+                            ? 'Basse'
+                            : _priorityFilters[phase.id] == 'medium'
+                            ? 'Moyenne'
+                            : _priorityFilters[phase.id] == 'high'
+                            ? 'Haute'
+                            : 'Urgente',
                       ),
                       deleteIcon: _priorityFilters[phase.id] == null
                           ? null
@@ -1370,14 +1645,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                       onDeleted: _priorityFilters[phase.id] == null
                           ? null
                           : () {
-                              setState(() {
-                                _priorityFilters[phase.id] = null;
-                              });
-                            },
+                        setState(() {
+                          _priorityFilters[phase.id] = null;
+                        });
+                      },
                     ),
                   ),
                 ),
-                
+
                 // Options de tri
                 Container(
                   child: PopupMenuButton<String>(
@@ -1410,15 +1685,15 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         _sortOptions[phase.id] == 'newest'
                             ? 'Plus récent'
                             : _sortOptions[phase.id] == 'oldest'
-                                ? 'Plus ancien'
-                                : _sortOptions[phase.id] == 'deadline_asc'
-                                    ? 'Échéance ↑'
-                                    : 'Échéance ↓',
+                            ? 'Plus ancien'
+                            : _sortOptions[phase.id] == 'deadline_asc'
+                            ? 'Échéance ↑'
+                            : 'Échéance ↓',
                       ),
                     ),
                   ),
                 ),
-                
+
                 // Bouton pour réinitialiser les filtres
                 if (_searchQueries[phase.id]!.isNotEmpty ||
                     _statusFilters[phase.id] != null ||
@@ -1442,9 +1717,36 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             ),
           ),
         ),
-        
+
         const SizedBox(height: 8),
-        if (allPhaseTasks.isEmpty)
+
+        // Affichage des sous-phases avec leurs tâches
+        if (subPhases.isNotEmpty) ...[
+          ...subPhases.map((subPhase) {
+            return _buildSubPhaseWithTasksCard(subPhase, phase);
+          }).toList(),
+          const SizedBox(height: 16),
+        ],
+
+        // Tâches sans sous-phase
+        if (tasksWithoutSubPhase.isNotEmpty) ...[
+          if (subPhases.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Tâches sans sous-phase',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ),
+          ...tasksWithoutSubPhase.map((task) => _buildTaskCard(task)).toList(),
+        ],
+
+        // Message approprié selon le contexte (pas de tâches ou filtrage)
+        if (allPhaseTasks.isEmpty) ...[
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -1460,8 +1762,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 ),
               ),
             ),
-          )
-        else if (tasks.isEmpty)
+          ),
+        ] else if (filteredTasks.isEmpty) ...[
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -1477,17 +1779,18 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 ),
               ),
             ),
-          )
-        else
+          ),
+        ] else if (subPhases.isEmpty && tasksWithoutSubPhase.isEmpty) ...[
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: tasks.length,
+            itemCount: filteredTasks.length,
             itemBuilder: (context, index) {
-              final task = tasks[index];
+              final task = filteredTasks[index];
               return _buildTaskCard(task);
             },
           ),
+        ]
       ],
     );
   }
@@ -1495,11 +1798,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   Widget _buildTasksWithoutPhaseSection() {
     // Récupérer toutes les tâches sans phase
     final allTasksWithoutPhase = _tasks.where((task) => task.phaseId == null).toList();
-    
+
     if (allTasksWithoutPhase.isEmpty) {
       return const SizedBox.shrink();
     }
-    
+
     // Appliquer les filtres et le tri
     final tasksWithoutPhase = _filterTasks(
       allTasksWithoutPhase,
@@ -1508,7 +1811,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       _noPhasePriorityFilter,
       _noPhaseSortOption,
     );
-    
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1544,7 +1847,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     }
                     return;
                   }
-                  
+
                   final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -1560,7 +1863,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               ),
             ],
           ),
-          
+
           // Barre de recherche
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -1584,7 +1887,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               controller: TextEditingController(text: _noPhaseSearchQuery),
             ),
           ),
-          
+
           // Options de filtrage et tri
           Padding(
             padding: const EdgeInsets.only(bottom: 8.0),
@@ -1629,12 +1932,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                           _noPhaseStatusFilter == null
                               ? 'Statut'
                               : _noPhaseStatusFilter == 'todo'
-                                  ? 'À faire'
-                                  : _noPhaseStatusFilter == 'in_progress'
-                                      ? 'En cours'
-                                      : _noPhaseStatusFilter == 'review'
-                                          ? 'En révision'
-                                          : 'Terminée',
+                              ? 'À faire'
+                              : _noPhaseStatusFilter == 'in_progress'
+                              ? 'En cours'
+                              : _noPhaseStatusFilter == 'review'
+                              ? 'En révision'
+                              : 'Terminée',
                         ),
                         deleteIcon: _noPhaseStatusFilter == null
                             ? null
@@ -1642,14 +1945,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         onDeleted: _noPhaseStatusFilter == null
                             ? null
                             : () {
-                                setState(() {
-                                  _noPhaseStatusFilter = null;
-                                });
-                              },
+                          setState(() {
+                            _noPhaseStatusFilter = null;
+                          });
+                        },
                       ),
                     ),
                   ),
-                  
+
                   // Filtre par priorité
                   Container(
                     padding: const EdgeInsets.only(right: 8.0),
@@ -1687,12 +1990,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                           _noPhasePriorityFilter == null
                               ? 'Priorité'
                               : _noPhasePriorityFilter == 'low'
-                                  ? 'Basse'
-                                  : _noPhasePriorityFilter == 'medium'
-                                      ? 'Moyenne'
-                                      : _noPhasePriorityFilter == 'high'
-                                          ? 'Haute'
-                                          : 'Urgente',
+                              ? 'Basse'
+                              : _noPhasePriorityFilter == 'medium'
+                              ? 'Moyenne'
+                              : _noPhasePriorityFilter == 'high'
+                              ? 'Haute'
+                              : 'Urgente',
                         ),
                         deleteIcon: _noPhasePriorityFilter == null
                             ? null
@@ -1700,14 +2003,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         onDeleted: _noPhasePriorityFilter == null
                             ? null
                             : () {
-                                setState(() {
-                                  _noPhasePriorityFilter = null;
-                                });
-                              },
+                          setState(() {
+                            _noPhasePriorityFilter = null;
+                          });
+                        },
                       ),
                     ),
                   ),
-                  
+
                   // Options de tri
                   Container(
                     child: PopupMenuButton<String>(
@@ -1740,15 +2043,15 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                           _noPhaseSortOption == 'newest'
                               ? 'Plus récent'
                               : _noPhaseSortOption == 'oldest'
-                                  ? 'Plus ancien'
-                                  : _noPhaseSortOption == 'deadline_asc'
-                                      ? 'Échéance ↑'
-                                      : 'Échéance ↓',
+                              ? 'Plus ancien'
+                              : _noPhaseSortOption == 'deadline_asc'
+                              ? 'Échéance ↑'
+                              : 'Échéance ↓',
                         ),
                       ),
                     ),
                   ),
-                  
+
                   // Bouton pour réinitialiser les filtres
                   if (_noPhaseSearchQuery.isNotEmpty ||
                       _noPhaseStatusFilter != null ||
@@ -1772,7 +2075,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 8),
           if (tasksWithoutPhase.isEmpty)
             Container(
@@ -1808,7 +2111,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   Widget _buildTaskCard(Task task) {
     final TaskStatus status = TaskStatus.fromValue(task.status);
     final TaskPriority priority = TaskPriority.fromValue(task.priority);
-    
+
     return Card(
       elevation: 1,
       margin: const EdgeInsets.only(bottom: 8),
@@ -1834,7 +2137,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             }
             return;
           }
-          
+
           final result = await Navigator.push(
             context,
             MaterialPageRoute(
@@ -1893,12 +2196,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
-                                  decoration: status == TaskStatus.completed 
-                                      ? TextDecoration.lineThrough 
+                                  decoration: status == TaskStatus.completed
+                                      ? TextDecoration.lineThrough
                                       : null,
                                   decorationColor: Colors.grey,
-                                  color: status == TaskStatus.completed 
-                                      ? Colors.grey 
+                                  color: status == TaskStatus.completed
+                                      ? Colors.grey
                                       : Colors.black,
                                 ),
                                 maxLines: 1,
@@ -1957,9 +2260,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            task.assignedTo != null 
-                              ? _userDisplayNames[task.assignedTo] ?? 'Utilisateur'
-                              : 'Non assigné',
+                            task.assignedTo != null
+                                ? _userDisplayNames[task.assignedTo] ?? 'Utilisateur'
+                                : 'Non assigné',
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey[700],
@@ -1975,8 +2278,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     Row(
                       children: [
                         Icon(
-                          Icons.event, 
-                          size: 16, 
+                          Icons.event,
+                          size: 16,
                           color: task.dueDate!.isBefore(DateTime.now())
                               ? Colors.red
                               : Colors.grey,

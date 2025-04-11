@@ -17,6 +17,7 @@ class PhaseService {
           .from('phases')
           .select()
           .eq('project_id', projectId)
+          .filter('parent_phase_id', 'is', null)  // Récupérer uniquement les phases principales
           .order('order_index', ascending: true);
 
       return response.map<Phase>((json) => Phase.fromJson(json)).toList();
@@ -42,13 +43,46 @@ class PhaseService {
     }
   }
 
+  // Récupérer toutes les sous-phases d'une phase principale
+  Future<List<Phase>> getSubPhasesByParentId(String parentPhaseId) async {
+    try {
+      final response = await _supabase
+          .from('phases')
+          .select()
+          .eq('parent_phase_id', parentPhaseId)
+          .order('order_index', ascending: true);
+
+      return response.map<Phase>((json) => Phase.fromJson(json)).toList();
+    } catch (e) {
+      print('Erreur lors de la récupération des sous-phases: $e');
+      return []; // Retourner une liste vide en cas d'erreur au lieu de propager l'exception
+    }
+  }
+
+  // Récupérer toutes les phases et sous-phases d'un projet (structure plate)
+  Future<List<Phase>> getAllPhasesAndSubPhases(String projectId) async {
+    try {
+      final response = await _supabase
+          .from('phases')
+          .select()
+          .eq('project_id', projectId)
+          .order('parent_phase_id', ascending: true, nullsFirst: true) // Phases principales d'abord
+          .order('order_index', ascending: true);
+
+      return response.map<Phase>((json) => Phase.fromJson(json)).toList();
+    } catch (e) {
+      print('Erreur lors de la récupération des phases et sous-phases: $e');
+      rethrow;
+    }
+  }
+
   // Créer une nouvelle phase
   Future<Phase> createPhase(
-    String projectId,
-    String name,
-    String description,
-    int orderIndex,
-  ) async {
+      String projectId,
+      String name,
+      String description,
+      int orderIndex,
+      ) async {
     try {
       final userId = _supabase.auth.currentUser!.id;
       final phaseId = _uuid.v4();
@@ -63,16 +97,61 @@ class PhaseService {
         createdBy: userId,
         orderIndex: orderIndex,
         status: PhaseStatus.notStarted.toValue(),
+        parentPhaseId: null, // S'assurer qu'il s'agit d'une phase principale
       );
 
       await _supabase.from('phases').insert(phase.toJson());
-      
+
       // Envoyer une notification pour la création de la phase
       await _notifyPhaseCreation(phase);
-      
+
       return phase;
     } catch (e) {
       print('Erreur lors de la création de la phase: $e');
+      rethrow;
+    }
+  }
+
+  // Créer une nouvelle sous-phase
+  Future<Phase> createSubPhase(
+      String parentPhaseId,
+      String name,
+      String description,
+      {String? status}
+      ) async {
+    try {
+      // Récupérer la phase parente pour obtenir le projectId et calculer l'ordre
+      final parentPhase = await getPhaseById(parentPhaseId);
+      final projectId = parentPhase.projectId;
+
+      // Récupérer le nombre de sous-phases existantes pour déterminer l'ordre
+      final existingSubPhases = await getSubPhasesByParentId(parentPhaseId);
+      final orderIndex = existingSubPhases.length;
+
+      final userId = _supabase.auth.currentUser!.id;
+      final phaseId = _uuid.v4();
+      final now = DateTime.now().toUtc();
+
+      final subPhase = Phase(
+        id: phaseId,
+        projectId: projectId,
+        name: name,
+        description: description,
+        createdAt: now,
+        createdBy: userId,
+        orderIndex: orderIndex,
+        status: status ?? PhaseStatus.notStarted.toValue(),
+        parentPhaseId: parentPhaseId,
+      );
+
+      await _supabase.from('phases').insert(subPhase.toJson());
+
+      // Envoyer une notification pour la création de la sous-phase
+      await _notifyPhaseCreation(subPhase);
+
+      return subPhase;
+    } catch (e) {
+      print('Erreur lors de la création de la sous-phase: $e');
       rethrow;
     }
   }
@@ -87,7 +166,7 @@ class PhaseService {
       } catch (e) {
         print('Impossible de récupérer l\'ancienne phase: $e');
       }
-      
+
       final updatedPhase = phase.copyWith(
         updatedAt: DateTime.now().toUtc(),
       );
@@ -96,7 +175,7 @@ class PhaseService {
           .from('phases')
           .update(updatedPhase.toJson())
           .eq('id', phase.id);
-      
+
       // Vérifier si le statut a changé
       if (oldPhase != null && oldPhase.status != updatedPhase.status) {
         await _notifyPhaseStatusChange(updatedPhase);
@@ -133,21 +212,45 @@ class PhaseService {
     }
   }
 
+  // Réordonner les sous-phases
+  Future<void> reorderSubPhases(List<Phase> subPhases) async {
+    try {
+      // Vérifier que toutes les phases ont le même parent
+      if (subPhases.isNotEmpty) {
+        final parentId = subPhases.first.parentPhaseId;
+        if (subPhases.any((phase) => phase.parentPhaseId != parentId)) {
+          throw Exception('Toutes les sous-phases doivent avoir le même parent');
+        }
+      }
+
+      for (int i = 0; i < subPhases.length; i++) {
+        final subPhase = subPhases[i];
+        await _supabase
+            .from('phases')
+            .update({'order_index': i})
+            .eq('id', subPhase.id);
+      }
+    } catch (e) {
+      print('Erreur lors de la réorganisation des sous-phases: $e');
+      rethrow;
+    }
+  }
+
   // Mettre à jour le budget alloué d'une phase
   Future<Phase> updatePhaseBudgetAllocation(String phaseId, double amount) async {
     try {
       // Récupérer la phase actuelle
       final phase = await getPhaseById(phaseId);
-      
+
       // Calculer le nouveau montant alloué
       final double newBudgetAllocated = (phase.budgetAllocated ?? 0) + amount;
-      
+
       // Mettre à jour la phase
       final updatedPhase = phase.copyWith(
         budgetAllocated: newBudgetAllocated,
         updatedAt: DateTime.now().toUtc(),
       );
-      
+
       await updatePhase(updatedPhase);
       return updatedPhase;
     } catch (e) {
@@ -161,16 +264,16 @@ class PhaseService {
     try {
       // Récupérer la phase actuelle
       final phase = await getPhaseById(phaseId);
-      
+
       // Calculer le nouveau montant consommé
       final double newBudgetConsumed = (phase.budgetConsumed ?? 0) + amount;
-      
+
       // Mettre à jour la phase
       final updatedPhase = phase.copyWith(
         budgetConsumed: newBudgetConsumed,
         updatedAt: DateTime.now().toUtc(),
       );
-      
+
       await updatePhase(updatedPhase);
       return updatedPhase;
     } catch (e) {
@@ -184,13 +287,13 @@ class PhaseService {
     try {
       // Récupérer la phase actuelle
       final phase = await getPhaseById(phaseId);
-      
+
       // Mettre à jour la phase avec le nouveau budget alloué
       final updatedPhase = phase.copyWith(
         budgetAllocated: budgetAmount,
         updatedAt: DateTime.now().toUtc(),
       );
-      
+
       await updatePhase(updatedPhase);
       return updatedPhase;
     } catch (e) {
@@ -204,28 +307,28 @@ class PhaseService {
     try {
       // Récupérer la phase
       final phase = await getPhaseById(phaseId);
-      
+
       // Récupérer les tâches de la phase pour calculer le budget alloué et consommé par tâche
       final tasks = await _supabase
           .from('tasks')
           .select()
           .eq('phase_id', phaseId)
           .order('priority', ascending: false);
-      
+
       double tasksBudgetAllocated = 0;
       double tasksBudgetConsumed = 0;
-      
+
       for (var task in tasks) {
         tasksBudgetAllocated += (task['budget_allocated'] ?? 0).toDouble();
         tasksBudgetConsumed += (task['budget_consumed'] ?? 0).toDouble();
       }
-      
+
       // Calculer le pourcentage d'utilisation
       double budgetUsagePercentage = 0;
       if (phase.budgetAllocated != null && phase.budgetAllocated! > 0) {
         budgetUsagePercentage = ((phase.budgetConsumed ?? 0) / phase.budgetAllocated!) * 100;
       }
-      
+
       return {
         'phase_id': phaseId,
         'phase_name': phase.name,
@@ -246,27 +349,27 @@ class PhaseService {
 
   // Redistribuer le budget du projet entre les phases
   Future<List<Phase>> redistributeProjectBudget(
-    String projectId, 
-    Map<String, double> phaseAllocations
-  ) async {
+      String projectId,
+      Map<String, double> phaseAllocations
+      ) async {
     try {
       // Récupérer toutes les phases du projet
       final phases = await getPhasesByProject(projectId);
       List<Phase> updatedPhases = [];
-      
+
       // Mettre à jour chaque phase avec sa nouvelle allocation
       for (var phase in phases) {
         if (phaseAllocations.containsKey(phase.id)) {
           final updatedPhase = await setPhaseSpecificBudget(
-            phase.id, 
-            phaseAllocations[phase.id]!
+              phase.id,
+              phaseAllocations[phase.id]!
           );
           updatedPhases.add(updatedPhase);
         } else {
           updatedPhases.add(phase);
         }
       }
-      
+
       return updatedPhases;
     } catch (e) {
       print('Erreur lors de la redistribution du budget entre les phases: $e');
@@ -275,7 +378,7 @@ class PhaseService {
   }
 
   // Méthodes privées pour les notifications
-  
+
   // Envoyer des notifications pour la création d'une phase
   Future<void> _notifyPhaseCreation(Phase phase) async {
     try {
@@ -285,12 +388,12 @@ class PhaseService {
           .select('name')
           .eq('id', phase.projectId)
           .single();
-      
+
       final projectName = projectResponse['name'] as String;
-      
+
       // Récupérer les membres du projet
       final teamMembers = await _projectService.getProjectTeamMembers(phase.projectId);
-      
+
       // Créer les notifications
       await _notificationService.createPhaseNotification(
         phase.id,
@@ -302,7 +405,7 @@ class PhaseService {
       print('Erreur lors de l\'envoi des notifications de création de phase: $e');
     }
   }
-  
+
   // Envoyer des notifications pour un changement de statut de phase
   Future<void> _notifyPhaseStatusChange(Phase phase) async {
     try {
@@ -312,12 +415,12 @@ class PhaseService {
           .select('name')
           .eq('id', phase.projectId)
           .single();
-      
+
       final projectName = projectResponse['name'] as String;
-      
+
       // Récupérer les membres du projet
       final teamMembers = await _projectService.getProjectTeamMembers(phase.projectId);
-      
+
       // Créer les notifications
       await _notificationService.createPhaseStatusNotification(
         phase.id,

@@ -2,11 +2,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/team_model.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class EmailService {
   // Clé API Brevo
-  static String get apiKey => dotenv.env['SENDINBLUE_API_KEY'] ?? '';
+  static const String apiKey = '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';
   static const String apiUrl = 'https://api.brevo.com/v3/smtp/email';
 
   // Méthode pour envoyer un email simple

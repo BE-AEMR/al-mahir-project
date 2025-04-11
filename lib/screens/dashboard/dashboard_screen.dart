@@ -59,7 +59,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     final project = _projectsList.firstWhere(
-      (p) => p.id == _selectedProjectId,
+          (p) => p.id == _selectedProjectId,
       orElse: () => Project(
         id: "",
         name: "Projet inconnu",
@@ -83,10 +83,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<TaskHistory> _taskHistoryList = [];
   Map<String, String> _userDisplayNames = {};
   Map<String, Task> _tasksMap = {};
-  
+
   // Cache pour les vérifications de permissions RBAC
   final Map<String, Future<bool>> _permissionCache = {};
-  
+
   // Référence au dernier RoleProvider pour vérifier s'il a changé
   RoleProvider? _lastRoleProvider;
 
@@ -103,23 +103,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     print('DASHBOARD TRACKING: initState() appelé');
-    
+
     // Précharger les vérifications de permissions pour améliorer les performances
     // Cet appel est asynchrone mais on ne l'attend pas pour ne pas bloquer l'UI
     _preloadPermissions();
-    
+
     _loadDashboardData();
   }
-  
+
   // Précharge toutes les permissions utilisées dans le dashboard pour optimiser les performances
   Future<void> _preloadPermissions() async {
     print('DASHBOARD TRACKING: Préchargement des permissions RBAC');
-    
+
     try {
       // Vérifier d'abord si l'utilisateur a le rôle "observer" (une seule fois)
       final userRoles = await _roleService.getUserRolesWithoutParam();
       final isObserver = userRoles.contains('observer');
-      
+
       if (isObserver) {
         // Si l'utilisateur est observateur, on accorde toutes les permissions
         print('DASHBOARD TRACKING: Utilisateur avec rôle observer, accès accordé à tout');
@@ -130,14 +130,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // Sinon, vérifier chaque permission individuellement
         print('DASHBOARD TRACKING: Vérification des permissions individuelles');
         final roleProvider = Provider.of<RoleProvider>(context, listen: false);
-        
+
         // Vérifier toutes les permissions en parallèle pour accélérer le chargement
         final results = await Future.wait([
           roleProvider.hasPermission('read_task'),
           roleProvider.hasPermission('read_phase'),
           roleProvider.hasPermission('read_transaction'),
         ]);
-        
+
         // Mettre en cache les résultats
         _permissionCache['read_task'] = Future.value(results[0]);
         _permissionCache['read_phase'] = Future.value(results[1]);
@@ -153,7 +153,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     print('DASHBOARD TRACKING: didChangeDependencies() appelé');
-    
+
     // Invalider le cache des permissions uniquement si le Provider a été modifié
     final currentRoleProvider = Provider.of<RoleProvider>(context, listen: false);
     if (currentRoleProvider != _lastRoleProvider) {
@@ -172,17 +172,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _loadDashboardData() async {
     print('DASHBOARD TRACKING: _loadDashboardData() - Début chargement');
-    
+
     // Flag GLOBAL pour suivre si une mise à jour d'état est prévue
     _stateUpdatePending = true;
     print('DASHBOARD TRACKING: _stateUpdatePending = true (pour assurer une actualisation unique)');
-    
+
     // Variables pour les données chargées
     List<Project> newProjects = [];
     List<Task> newTasks = [];
     List<Phase> newPhases = [];
-    List<ProjectTransaction> newTransactions = []; 
-    
+    List<ProjectTransaction> newTransactions = [];
+
     // Afficher uniquement l'indicateur de chargement - pas de setState ici
     _isLoading = true;
 
@@ -202,29 +202,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
         newProjects = cachedProjects.map((json) => Project.fromJson(json)).toList();
         newTasks = cachedTasks.map((json) => Task.fromJson(json)).toList();
         newPhases = cachedPhases.map((json) => Phase.fromJson(json)).toList();
-        
+
         if (cachedTransactions != null && cachedTransactions.isNotEmpty) {
           newTransactions = cachedTransactions.map((json) => ProjectTransaction.fromJson(json)).toList();
         }
-        
+
         // Filtrer les données par projets accessibles
         final Set<String> accessibleProjectIds = newProjects.map((p) => p.id).toSet();
         newTasks = newTasks.where((task) => accessibleProjectIds.contains(task.projectId)).toList();
         newPhases = newPhases.where((phase) => accessibleProjectIds.contains(phase.projectId)).toList();
         newTransactions = newTransactions.where((tx) => accessibleProjectIds.contains(tx.projectId)).toList();
-        
+
         // Mise à jour des données sans setState - nous ferons un seul setState à la fin
         _projectsList = newProjects;
         _tasksList = newTasks;
         _phasesList = newPhases;
         _projectTransactionsList = newTransactions;
-        
+
         // Créer mapping des tâches
         _tasksMap = {for (var task in _tasksList) task.id: task};
-          
+
         // Masquer l'indicateur de chargement
         _isLoading = false;
-        
+
         print('DASHBOARD TRACKING: Données du cache chargées, préparation des graphiques SANS setState');
 
         // Préparer les graphiques sans setState
@@ -234,7 +234,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // 2. Continuer le chargement en arrière-plan (sans bloquer l'UI)
         print('DASHBOARD TRACKING: Démarrage chargement en arrière-plan');
         await _loadFullDataInBackground(suppressFinalSetState: true);
-        
+
         // UNIQUE setState à la fin du chargement complet
         if (mounted) {
           setState(() {
@@ -255,7 +255,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erreur lors du chargement des données: $e')),
         );
-        
+
         // Si erreur, il faut faire un setState sinon l'UI ne se mettra jamais à jour
         setState(() {
           _isLoading = false;
@@ -266,7 +266,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } finally {
       // Dans tous les cas, on s'assure que _isLoading est false
       _isLoading = false;
-      
+
       // Si le flag _stateUpdatePending est toujours true, c'est qu'aucun setState n'a été fait
       // Donc on fait un setState unique ici
       if (mounted && _stateUpdatePending) {
@@ -283,7 +283,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _loadFullData({bool suppressFinalSetState = false}) async {
     try {
       print('DASHBOARD TRACKING: _loadFullData() - Chargement complet des données');
-      
+
       // Chargement parallèle des données avec Future.wait pour optimiser le temps de chargement
       final results = await Future.wait([
         _projectService.getAccessibleProjects(), // Utiliser getAccessibleProjects() pour respecter RBAC
@@ -318,7 +318,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       // Créer mapping des tâches
       _tasksMap = {for (var task in _tasksList) task.id: task};
-      
+
       // Charger l'historique des tâches récentes (limité à 50)
       await _loadTaskHistory();
 
@@ -338,7 +338,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       // Préparation des données pour les charts et widgets
       await _prepareAllChartData(suppressSetState: suppressFinalSetState);
-      
+
       // Si on ne supprime pas le setState final, on met à jour l'UI
       if (!suppressFinalSetState && mounted) {
         setState(() {
@@ -354,10 +354,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     } catch (e) {
       print('Erreur lors du chargement complet des données: $e');
-      
+
       // En cas d'erreur, on réinitialise l'état de chargement
       _isLoading = false;
-      
+
       // Si nous ne supprimons pas le setState final, mettons à jour l'UI pour l'erreur
       if (!suppressFinalSetState && mounted) {
         setState(() {
@@ -365,7 +365,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         });
         print('DASHBOARD TRACKING: setState() - Après erreur dans _loadFullData');
       }
-      
+
       rethrow;
     }
   }
@@ -375,13 +375,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _loadFullDataInBackground({bool suppressFinalSetState = false}) async {
     try {
       print('DASHBOARD TRACKING: _loadFullDataInBackground() - Début');
-      
+
       // Vérifier si le widget est monté avant de procéder
       if (!mounted) {
         print('DASHBOARD TRACKING: Widget non monté, annulation du chargement en arrière-plan');
         return;
       }
-      
+
       // Chargement en parallèle pour optimiser
       final results = await Future.wait([
         _projectService.getAccessibleProjects(), // Utiliser getAccessibleProjects() pour respecter RBAC
@@ -405,15 +405,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final newTransactions = results[3] as List<ProjectTransaction>;
       final newBudgets = results[4] as List<Budget>;
       final newBudgetTransactions = results[5] as List<BudgetTransaction>;
-      
+
       // Filtrer les données par projets accessibles
       final Set<String> accessibleProjectIds = newProjects.map((p) => p.id).toSet();
       final filteredTasks = newTasks.where((task) => accessibleProjectIds.contains(task.projectId)).toList();
       final filteredPhases = newPhases.where((phase) => accessibleProjectIds.contains(phase.projectId)).toList();
       final filteredTransactions = newTransactions.where((tx) => accessibleProjectIds.contains(tx.projectId)).toList();
-      
+
       print('DASHBOARD TRACKING: Données fraîches chargées en arrière-plan');
-      
+
       // Si on ne supprime pas le setState final, on met à jour maintenant
       if (!suppressFinalSetState && mounted) {
         setState(() {
@@ -424,7 +424,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _projectTransactionsList = filteredTransactions;
           _budgetsList = newBudgets;
           _budgetTransactionsList = newBudgetTransactions;
-          
+
           // Recréer le mapping des tâches
           _tasksMap = {for (var task in _tasksList) task.id: task};
         });
@@ -441,7 +441,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _tasksMap = {for (var task in _tasksList) task.id: task};
         print('DASHBOARD TRACKING: Données mis à jour SANS setState (actualisation unique)');
       }
-      
+
       // Mettre en cache pour la prochaine visite (toujours, indépendamment du mode d'actualisation)
       if (newProjects.isNotEmpty) {
         _cacheService.cacheProjects(newProjects.map((p) => p.toJson()).toList());
@@ -462,7 +462,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // Préparer les graphiques une seule fois à la fin
       if (mounted) {
         await _prepareAllChartData(suppressSetState: suppressFinalSetState);
-        
+
         // Si on supprime le setState final, on marque simplement que la mise à jour est terminée
         if (suppressFinalSetState) {
           print('DASHBOARD TRACKING: Préparation des graphiques terminée sans setState (actualisation unique)');
@@ -488,12 +488,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // On récupère les tâches les plus récentes pour limiter le volume de données
       final recentTasks = List<Task>.from(_tasksList)
         ..sort((a, b) => b.updatedAt?.compareTo(a.updatedAt ?? a.createdAt) ??
-                          b.createdAt.compareTo(a.createdAt));
+            b.createdAt.compareTo(a.createdAt));
       final tasksToFetch = recentTasks.take(20).toList();
 
       // Exécution parallèle des requêtes d'historique
       final historyFutures = tasksToFetch.map(
-        (task) => _projectService.getTaskHistory(task.id)
+              (task) => _projectService.getTaskHistory(task.id)
       ).toList();
 
       final historyResults = await Future.wait(historyFutures);
@@ -526,18 +526,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Prépare toutes les données pour les graphiques et widgets
   Future<void> _prepareAllChartData({bool suppressSetState = false}) async {
     print('DASHBOARD TRACKING: _prepareAllChartData() appelé' + (suppressSetState ? ' (sans setState)' : ''));
-    
+
     // Vérifier si le widget est toujours monté avant de procéder
     if (!mounted) {
       print('DASHBOARD TRACKING: Widget non monté, annulation de la préparation des graphiques');
       return;
     }
-    
+
     // Marquer les mises à jour en attente si nous ne supprimons pas setState
     if (!suppressSetState) {
       _stateUpdatePending = true;
     }
-    
+
     // Préfiltrer les données si un projet spécifique est sélectionné
     List<Task> filteredTasks = _tasksList;
     List<Phase> filteredPhases = _phasesList;
@@ -561,7 +561,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _preparePhaseProgressData(filteredPhases, filteredTasks);
     _prepareBudgetOverviewData(_projectsList);
     _prepareRecentTransactionsData(filteredTransactions);
-    
+
     // Réinitialiser le flag de mise à jour en attente
     if (!suppressSetState && mounted) {
       setState(() {
@@ -612,20 +612,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }).toList();
   }
-  
+
   Future<void> _prepareProjectProgressData(List<Project> projects, List<Phase> phases, List<Task> tasks, {bool suppressSetState = false}) async {
     print('DASHBOARD TRACKING: _prepareProjectProgressData() appelé' + (suppressSetState ? ' (sans setState)' : ''));
     // Liste temporaire pour stocker les résultats
     final List<ProjectProgressData> tempData = [];
-    
-    print('DASHBOARD TRACKING: Préparation des données de progression - ' + 
-      (_showAllProjects ? 'Tous les projets' : 'Projet spécifique: ${_selectedProjectId ?? "Aucun"}'));
+
+    print('DASHBOARD TRACKING: Préparation des données de progression - ' +
+        (_showAllProjects ? 'Tous les projets' : 'Projet spécifique: ${_selectedProjectId ?? "Aucun"}'));
 
     // Traiter chaque projet
     for (var project in projects) {
       // Vérifier si ce projet devrait être inclus dans le graphique
       bool shouldIncludeProject = _showAllProjects || project.id == _selectedProjectId;
-      
+
       if (!shouldIncludeProject) {
         continue; // Passer au projet suivant si ce n'est pas celui sélectionné en mode projet spécifique
       }
@@ -637,8 +637,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       double progressPercentage = 0;
       if (projectTasks.isNotEmpty) {
         final completedTasks = projectTasks.where((task) =>
-          task.status.toLowerCase() == 'terminée' ||
-          task.status.toLowerCase() == 'completed'
+        task.status.toLowerCase() == 'terminée' ||
+            task.status.toLowerCase() == 'completed'
         ).length;
         progressPercentage = (completedTasks / projectTasks.length) * 100;
       }
@@ -757,7 +757,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Mettre à jour la liste finale sans setState si demandé
     if (suppressSetState) {
       _projectProgressData = tempData;
-      print('DASHBOARD TRACKING: Mise à jour _projectProgressData sans setState (${tempData.length} projets)'); 
+      print('DASHBOARD TRACKING: Mise à jour _projectProgressData sans setState (${tempData.length} projets)');
     } else {
       setState(() {
         _projectProgressData = tempData;
@@ -769,9 +769,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _prepareUpcomingTasksData(List<Task> tasks) {
     // Filtrer les tâches à venir (non terminées et avec une date d'échéance)
     final upcomingTasks = tasks.where((task) =>
-      task.status.toLowerCase() != 'terminée' &&
-      task.status.toLowerCase() != 'completed' &&
-      task.dueDate != null
+    task.status.toLowerCase() != 'terminée' &&
+        task.status.toLowerCase() != 'completed' &&
+        task.dueDate != null
     ).toList();
 
     // Trier par date d'échéance
@@ -792,7 +792,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _preparePhaseProgressData(List<Phase> phases, List<Task> tasks) {
-    _phaseProgressData = phases.map((phase) {
+    // Filtrer pour n'inclure que les phases principales (sans parentPhaseId)
+    final mainPhases = phases.where((phase) => phase.parentPhaseId == null).toList();
+
+    _phaseProgressData = mainPhases.map((phase) {
 
       // Calcul du pourcentage de progression
       final phaseTasks = tasks.where((task) => task.phaseId == phase.id).toList();
@@ -800,8 +803,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       double progressPercentage = 0;
       if (phaseTasks.isNotEmpty) {
         final completedTasks = phaseTasks.where((task) =>
-          task.status.toLowerCase() == 'terminée' ||
-          task.status.toLowerCase() == 'completed'
+        task.status.toLowerCase() == 'terminée' ||
+            task.status.toLowerCase() == 'completed'
         ).length;
         progressPercentage = (completedTasks / phaseTasks.length) * 100;
       }
@@ -894,66 +897,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }).toList();
 
     _budgetOverviewData = relevantProjects
-      .map((project) {
-        // Calcul du pourcentage d'utilisation du budget basé sur les transactions accessibles
-        double usedBudget = 0;
-        double budgetUsagePercentage = 0;
+        .map((project) {
+      // Calcul du pourcentage d'utilisation du budget basé sur les transactions accessibles
+      double usedBudget = 0;
+      double budgetUsagePercentage = 0;
 
-        if (_projectTransactionsList.isNotEmpty) {
-          final projectTransactions = _projectTransactionsList.where((tx) => tx.projectId == project.id).toList();
+      if (_projectTransactionsList.isNotEmpty) {
+        final projectTransactions = _projectTransactionsList.where((tx) => tx.projectId == project.id).toList();
 
-          // Si on a trouvé des transactions pour ce projet, calculer le pourcentage d'utilisation
-          if (projectTransactions.isNotEmpty) {
-            // Calculer les dépenses (expenses)
-            usedBudget = projectTransactions
-                .where((tx) => !tx.isIncome)
-                .fold(0.0, (sum, tx) => sum + tx.absoluteAmount);
+        // Si on a trouvé des transactions pour ce projet, calculer le pourcentage d'utilisation
+        if (projectTransactions.isNotEmpty) {
+          // Calculer les dépenses (expenses)
+          usedBudget = projectTransactions
+              .where((tx) => !tx.isIncome)
+              .fold(0.0, (sum, tx) => sum + tx.absoluteAmount);
 
-            // Calculer les revenus (income)
-            double totalRevenues = projectTransactions
-                .where((tx) => tx.isIncome)
-                .fold(0.0, (sum, tx) => sum + tx.absoluteAmount);
+          // Calculer les revenus (income)
+          double totalRevenues = projectTransactions
+              .where((tx) => tx.isIncome)
+              .fold(0.0, (sum, tx) => sum + tx.absoluteAmount);
 
-            // Si nous avons des revenus, calculer le pourcentage par rapport aux revenus
-            if (totalRevenues > 0) {
-              budgetUsagePercentage = (usedBudget / totalRevenues) * 100;
-            } else if (project.budgetAllocated != null && project.budgetAllocated! > 0) {
-              // Sinon, utiliser le budget alloué comme référence si disponible
-              budgetUsagePercentage = (usedBudget / project.budgetAllocated!) * 100;
-            } else {
-              // Si pas de revenus et pas de budget alloué, montrer le pourcentage en fonction des dépenses
-              budgetUsagePercentage = usedBudget > 0 ? 100 : 0; // Si des dépenses existent sans revenus ni budget, 100%
-            }
-            budgetUsagePercentage = budgetUsagePercentage.clamp(0, 100);
+          // Si nous avons des revenus, calculer le pourcentage par rapport aux revenus
+          if (totalRevenues > 0) {
+            budgetUsagePercentage = (usedBudget / totalRevenues) * 100;
+          } else if (project.budgetAllocated != null && project.budgetAllocated! > 0) {
+            // Sinon, utiliser le budget alloué comme référence si disponible
+            budgetUsagePercentage = (usedBudget / project.budgetAllocated!) * 100;
           } else {
-            // Si pas de transactions accessibles, utiliser la valeur par défaut du projet
-            usedBudget = project.budgetConsumed ?? 0;
-            budgetUsagePercentage = project.budgetUsagePercentage;
+            // Si pas de revenus et pas de budget alloué, montrer le pourcentage en fonction des dépenses
+            budgetUsagePercentage = usedBudget > 0 ? 100 : 0; // Si des dépenses existent sans revenus ni budget, 100%
           }
+          budgetUsagePercentage = budgetUsagePercentage.clamp(0, 100);
         } else {
           // Si pas de transactions accessibles, utiliser la valeur par défaut du projet
           usedBudget = project.budgetConsumed ?? 0;
           budgetUsagePercentage = project.budgetUsagePercentage;
         }
+      } else {
+        // Si pas de transactions accessibles, utiliser la valeur par défaut du projet
+        usedBudget = project.budgetConsumed ?? 0;
+        budgetUsagePercentage = project.budgetUsagePercentage;
+      }
 
-        // Déterminer la couleur en fonction du pourcentage d'utilisation
-        Color budgetColor;
-        if (budgetUsagePercentage < 50) {
-          budgetColor = Colors.green; // Moins de 50% du budget utilisé : vert
-        } else if (budgetUsagePercentage < 75) {
-          budgetColor = Colors.orange; // Entre 50% et 75% : orange
-        } else {
-          budgetColor = Colors.red; // Plus de 75% : rouge
-        }
+      // Déterminer la couleur en fonction du pourcentage d'utilisation
+      Color budgetColor;
+      if (budgetUsagePercentage < 50) {
+        budgetColor = Colors.green; // Moins de 50% du budget utilisé : vert
+      } else if (budgetUsagePercentage < 75) {
+        budgetColor = Colors.orange; // Entre 50% et 75% : orange
+      } else {
+        budgetColor = Colors.red; // Plus de 75% : rouge
+      }
 
-        return BudgetOverviewData(
-          projectName: project.name,
-          projectId: project.id,
-          allocatedBudget: project.budgetAllocated ?? 0,
-          usedBudget: usedBudget,
-          color: budgetColor,
-        );
-      }).toList();
+      return BudgetOverviewData(
+        projectName: project.name,
+        projectId: project.id,
+        allocatedBudget: project.budgetAllocated ?? 0,
+        usedBudget: usedBudget,
+        color: budgetColor,
+      );
+    }).toList();
   }
 
   void _prepareRecentTransactionsData(List<ProjectTransaction> transactions) {
@@ -1184,10 +1187,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _refreshDashboard() async {
     print('DASHBOARD TRACKING: _refreshDashboard() appelé');
-    
+
     // Réinitialiser le flag
     _stateUpdatePending = false;
-    
+
     setState(() {
       _isLoading = true;
     });
@@ -1252,68 +1255,68 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // Utiliser LayoutBuilder pour s'adapter à différentes tailles d'écran
     return LayoutBuilder(
-      builder: (context, constraints) {
-        // Adapter la taille du texte en fonction de la largeur disponible
-        final double titleFontSize = constraints.maxWidth < 350 ? 20 : 20;
-        final double subtitleFontSize = constraints.maxWidth < 350 ? 14 : 16;
+        builder: (context, constraints) {
+          // Adapter la taille du texte en fonction de la largeur disponible
+          final double titleFontSize = constraints.maxWidth < 350 ? 20 : 20;
+          final double subtitleFontSize = constraints.maxWidth < 350 ? 14 : 16;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Première ligne avec salutation et sélecteur de projet
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Texte de salutation avec ellipsis pour éviter le débordement
-                Flexible(
-                  child: Text(
-                    '$greeting !',
-                    style: TextStyle(
-                      fontSize: titleFontSize,
-                      fontWeight: FontWeight.bold,
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Première ligne avec salutation et sélecteur de projet
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Texte de salutation avec ellipsis pour éviter le débordement
+                  Flexible(
+                    child: Text(
+                      '$greeting !',
+                      style: TextStyle(
+                        fontSize: titleFontSize,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                // Espace flexible entre les éléments
-                const SizedBox(width: 8),
-                // Bouton de sélection de projet
-                if (_projectsList.isNotEmpty)
-                  ProjectSelectorButton(
-                    onPressed: _showProjectSelector,
-                    showAllProjects: _showAllProjects,
-                    projectName: _selectedProjectName,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            // Deuxième ligne avec le message de bienvenue
-            Wrap(
-              children: [
-                Text(
-                  'Bienvenue sur votre tableau de bord',
-                  style: TextStyle(
-                    fontSize: subtitleFontSize,
-                    color: Colors.grey[600],
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (!_showAllProjects && _selectedProjectId != null)
+                  // Espace flexible entre les éléments
+                  const SizedBox(width: 8),
+                  // Bouton de sélection de projet
+                  if (_projectsList.isNotEmpty)
+                    ProjectSelectorButton(
+                      onPressed: _showProjectSelector,
+                      showAllProjects: _showAllProjects,
+                      projectName: _selectedProjectName,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Deuxième ligne avec le message de bienvenue
+              Wrap(
+                children: [
                   Text(
-                    ' - ${_selectedProjectName}',
+                    'Bienvenue sur votre tableau de bord',
                     style: TextStyle(
                       fontSize: subtitleFontSize,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue[700],
+                      color: Colors.grey[600],
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
-              ],
-            ),
-          ],
-        );
-      }
+                  if (!_showAllProjects && _selectedProjectId != null)
+                    Text(
+                      ' - ${_selectedProjectName}',
+                      style: TextStyle(
+                        fontSize: subtitleFontSize,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue[700],
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ],
+          );
+        }
     );
   }
 
@@ -1329,16 +1332,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       relevantProjects = _projectsList.where((project) => project.id == _selectedProjectId).toList();
     }
 
+    // Ne compter que les phases principales (sans parentPhaseId)
+    filteredPhases = filteredPhases.where((phase) => phase.parentPhaseId == null).toList();
+
     // Calculer le nombre de tâches terminées
     final int completedTasks = filteredTasks.where((task) =>
-      task.status.toLowerCase() == 'completed' ||
-      task.status.toLowerCase() == 'terminée'
+    task.status.toLowerCase() == 'completed' ||
+        task.status.toLowerCase() == 'terminée'
     ).length;
 
     // Calculer le nombre de phases en cours
     final int inProgressPhases = filteredPhases.where((phase) =>
-      phase.status.toLowerCase() == 'completed' ||
-      phase.status.toLowerCase() == 'terminée'
+    phase.status.toLowerCase() == 'completed' ||
+        phase.status.toLowerCase() == 'terminée'
     ).length;
 
     return GridView(
@@ -1399,186 +1405,186 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _refreshDashboard,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildWelcomeHeader(),
-                    const SizedBox(height: 24),
-                    _buildSummaryCards(),
-                    const SizedBox(height: 24),
+        onRefresh: _refreshDashboard,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildWelcomeHeader(),
+              const SizedBox(height: 24),
+              _buildSummaryCards(),
+              const SizedBox(height: 24),
 
-                    // Section des tâches et projets - Nécessite la permission read_task
-                    FutureBuilder<bool>(
-                      future: _checkTasksAccessPermission(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
+              // Section des tâches et projets - Nécessite la permission read_task
+              FutureBuilder<bool>(
+                future: _checkTasksAccessPermission(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                        final hasAccess = snapshot.data ?? false;
+                  final hasAccess = snapshot.data ?? false;
 
-                        if (hasAccess) {
-                          return SizedBox(
-                            height: 730,
-                            // Utilisation de RepaintBoundary pour isoler cette section coûteuse
-                            // et éviter sa reconstruction si elle n'a pas changé
-                            child: RepaintBoundary(
-                              child: TasksProjectsSection(
-                                tasksByStatusData: _tasksByStatusData,
-                                tasksByPriorityData: _tasksByPriorityData,
-                                projectProgressData: _projectProgressData,
-                                upcomingTasksData: _upcomingTasksData,
-                                onSeeAllProjects: _navigateToProjectsList,
-                                onSeeAllTasks: _navigateToTasksList,
-                                onProjectTap: _navigateToProjectDetails,
-                                onTaskTap: _navigateToTaskDetails,
+                  if (hasAccess) {
+                    return SizedBox(
+                      height: 730,
+                      // Utilisation de RepaintBoundary pour isoler cette section coûteuse
+                      // et éviter sa reconstruction si elle n'a pas changé
+                      child: RepaintBoundary(
+                        child: TasksProjectsSection(
+                          tasksByStatusData: _tasksByStatusData,
+                          tasksByPriorityData: _tasksByPriorityData,
+                          projectProgressData: _projectProgressData,
+                          upcomingTasksData: _upcomingTasksData,
+                          onSeeAllProjects: _navigateToProjectsList,
+                          onSeeAllTasks: _navigateToTasksList,
+                          onProjectTap: _navigateToProjectDetails,
+                          onTaskTap: _navigateToTaskDetails,
+                        ),
+                      ),
+                    );
+                  } else {
+                    return Container(
+                      height: 200,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.lock_outline, size: 48, color: Colors.grey[400]),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Vous n\'avez pas accès aux tâches',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[600],
                               ),
                             ),
-                          );
-                        } else {
-                          return Container(
-                            height: 200,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.lock_outline, size: 48, color: Colors.grey[400]),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Vous n\'avez pas accès aux tâches',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Contactez un administrateur pour obtenir les permissions nécessaires',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey[500],
-                                    ),
-                                  ),
-                                ],
+                            const SizedBox(height: 8),
+                            Text(
+                              'Contactez un administrateur pour obtenir les permissions nécessaires',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[500],
                               ),
                             ),
-                          );
-                        }
-                      },
-                    ),
-
-                    // Espacement adaptatif basé sur la largeur d'écran
-                    Builder(builder: (context) {
-                      double screenWidth = MediaQuery.of(context).size.width;
-                      // Sur les grands écrans (≥600px), réduire considérablement l'espacement
-                      // puisque "Tâches à venir" a été déplacé vers le haut
-                      double height = screenWidth >= 600 ? 5 : 30;
-                      return SizedBox(height: height);
-                    }),
-
-                    // Section des phases - Nécessite la permission read_phase
-                    FutureBuilder<bool>(
-                      future: _checkPhasesAccessPermission(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-
-                        final hasAccess = snapshot.data ?? false;
-
-                        if (hasAccess) {
-                          return SizedBox(
-                            height: 350,
-                            // Utilisation de RepaintBoundary pour isoler cette section
-                            child: RepaintBoundary(
-                              child: PhasesSection(
-                                phaseProgressData: _phaseProgressData,
-                                onSeeAllPhases: _navigateToPhasesList,
-                                onPhaseTap: _navigateToPhaseDetails,
-                              ),
-                            ),
-                          );
-                        } else {
-                          return Container(); // Section masquée si pas d'accès
-                        }
-                      },
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Section budget et finances - Nécessite la permission read_transaction
-                    FutureBuilder<bool>(
-                      future: _checkFinanceAccessPermission(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-
-                        final hasAccess = snapshot.data ?? false;
-
-                        if (hasAccess) {
-                          return SizedBox(
-                            height: 600,
-                            // Utilisation de RepaintBoundary pour isoler cette section
-                            child: RepaintBoundary(
-                              child: CagnotteWebView(
-                                title: 'Cagnotte en ligne',
-                                onSeeAllPressed: _navigateToBudgetScreen,
-                              ),
-                            ),
-                          );
-                        } else {
-                          return Container(); // Section masquée si pas d'accès
-                        }
-                      },
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Section de l'historique des tâches - Nécessite read_task
-                    FutureBuilder<bool>(
-                      future: _checkTasksAccessPermission(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-
-                        final hasAccess = snapshot.data ?? false;
-
-                        if (hasAccess) {
-                          return SizedBox(
-                            height: 500,
-                            // Utilisation de RepaintBoundary pour isoler cette section
-                            child: RepaintBoundary(
-                              child: TaskHistorySection(
-                                taskHistoryData: _taskHistoryList,
-                                userDisplayNames: _userDisplayNames,
-                                tasksMap: _tasksMap,
-                                onTaskTap: _navigateToTaskDetails,
-                              ),
-                            ),
-                          );
-                        } else {
-                          return Container(); // Section masquée si pas d'accès
-                        }
-                      },
-                    ),
-
-                    const SizedBox(height: 24),
-                  ],
-                ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+                },
               ),
-            ),
+
+              // Espacement adaptatif basé sur la largeur d'écran
+              Builder(builder: (context) {
+                double screenWidth = MediaQuery.of(context).size.width;
+                // Sur les grands écrans (≥600px), réduire considérablement l'espacement
+                // puisque "Tâches à venir" a été déplacé vers le haut
+                double height = screenWidth >= 600 ? 5 : 30;
+                return SizedBox(height: height);
+              }),
+
+              // Section des phases - Nécessite la permission read_phase
+              FutureBuilder<bool>(
+                future: _checkPhasesAccessPermission(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final hasAccess = snapshot.data ?? false;
+
+                  if (hasAccess) {
+                    return SizedBox(
+                      height: 350,
+                      // Utilisation de RepaintBoundary pour isoler cette section
+                      child: RepaintBoundary(
+                        child: PhasesSection(
+                          phaseProgressData: _phaseProgressData,
+                          onSeeAllPhases: _navigateToPhasesList,
+                          onPhaseTap: _navigateToPhaseDetails,
+                        ),
+                      ),
+                    );
+                  } else {
+                    return Container(); // Section masquée si pas d'accès
+                  }
+                },
+              ),
+
+              const SizedBox(height: 24),
+
+              // Section budget et finances - Nécessite la permission read_transaction
+              FutureBuilder<bool>(
+                future: _checkFinanceAccessPermission(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final hasAccess = snapshot.data ?? false;
+
+                  if (hasAccess) {
+                    return SizedBox(
+                      height: 600,
+                      // Utilisation de RepaintBoundary pour isoler cette section
+                      child: RepaintBoundary(
+                        child: CagnotteWebView(
+                          title: 'Cagnotte en ligne',
+                          onSeeAllPressed: _navigateToBudgetScreen,
+                        ),
+                      ),
+                    );
+                  } else {
+                    return Container(); // Section masquée si pas d'accès
+                  }
+                },
+              ),
+
+              const SizedBox(height: 24),
+
+              // Section de l'historique des tâches - Nécessite read_task
+              FutureBuilder<bool>(
+                future: _checkTasksAccessPermission(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final hasAccess = snapshot.data ?? false;
+
+                  if (hasAccess) {
+                    return SizedBox(
+                      height: 500,
+                      // Utilisation de RepaintBoundary pour isoler cette section
+                      child: RepaintBoundary(
+                        child: TaskHistorySection(
+                          taskHistoryData: _taskHistoryList,
+                          userDisplayNames: _userDisplayNames,
+                          tasksMap: _tasksMap,
+                          onTaskTap: _navigateToTaskDetails,
+                        ),
+                      ),
+                    );
+                  } else {
+                    return Container(); // Section masquée si pas d'accès
+                  }
+                },
+              ),
+
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
