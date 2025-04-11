@@ -6,8 +6,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class EmailService {
   // Clé API Brevo
-  static const String apiKey = dotenv.env['SENDINBLUE_API_KEY'] ?? '';
-  static const String apiUrl = 'https://api.brevo.com/v3/smtp/email';
+  final String apiKey = dotenv.env['SENDINBLUE_API_KEY'] ?? '';
+  final String apiUrl = 'https://api.brevo.com/v3/smtp/email';
 
   // Méthode pour envoyer un email simple
   static Future<bool> sendEmail({
