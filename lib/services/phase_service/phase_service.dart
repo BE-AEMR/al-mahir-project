@@ -13,6 +13,8 @@ class PhaseService {
   // Récupérer toutes les phases d'un projet
   Future<List<Phase>> getPhasesByProject(String projectId) async {
     try {
+      print('Début de récupération des phases pour le projet: $projectId');
+      
       final response = await _supabase
           .from('phases')
           .select()
@@ -20,7 +22,12 @@ class PhaseService {
           .filter('parent_phase_id', 'is', null)  // Récupérer uniquement les phases principales
           .order('order_index', ascending: true);
 
-      return response.map<Phase>((json) => Phase.fromJson(json)).toList();
+      print('Réponse brute de la base de données: $response');
+      
+      final phases = response.map<Phase>((json) => Phase.fromJson(json)).toList();
+      print('Phases récupérées: ${phases.length} - IDs: ${phases.map((p) => p.id).join(', ')}');
+      
+      return phases;
     } catch (e) {
       print('Erreur lors de la récupération des phases: $e');
       rethrow;
@@ -186,16 +193,93 @@ class PhaseService {
     }
   }
 
-  // Supprimer une phase
+  // Supprimer une phase et ses dépendances
   Future<void> deletePhase(String phaseId) async {
     try {
-      await _supabase.from('phases').delete().eq('id', phaseId);
+      // Récupérer les informations de la phase avant de la supprimer
+      final phaseInfo = await _supabase
+          .from('phases')
+          .select('project_id, parent_phase_id')
+          .eq('id', phaseId)
+          .maybeSingle();
+      
+      if (phaseInfo == null) {
+        print('Phase $phaseId déjà supprimée ou inexistante');
+        return;
+      }
+      
+      final projectId = phaseInfo['project_id'];
+      final parentPhaseId = phaseInfo['parent_phase_id'];
+      
+      // Récupérer toutes les sous-phases avant suppression
+      final subPhases = await getSubPhasesByParentId(phaseId);
+      
+      // Stocker l'ID de la phase et toutes les sous-phases
+      final allPhaseIds = [phaseId, ...subPhases.map((p) => p.id)];
+      
+      // 1. Mettre à jour les tâches associées à la phase et sous-phases (phaseId = null)
+      if (allPhaseIds.isNotEmpty) {
+        await _supabase
+            .from('tasks')
+            .update({'phase_id': null})
+            .filter('phase_id', 'in', allPhaseIds);
+      }
+      
+      // 2. Supprimer d'abord toutes les sous-phases
+      if (subPhases.isNotEmpty) {
+        await _supabase
+            .from('phases')
+            .delete()
+            .eq('parent_phase_id', phaseId);
+      }
+      
+      // 3. Supprimer la phase principale
+      final result = await _supabase
+          .from('phases')
+          .delete()
+          .eq('id', phaseId)
+          .select();
+      
+      print('Résultat de la suppression: $result');
+      
+      // 4. Réindexer les phases restantes du même projet
+      await _reindexRemainingPhases(projectId, parentPhaseId);
     } catch (e) {
       print('Erreur lors de la suppression de la phase: $e');
       rethrow;
     }
   }
 
+  // Réindexer les phases après suppression
+  Future<void> _reindexRemainingPhases(String projectId, dynamic parentPhaseId) async {
+    try {
+      print('Réindexation des phases du projet $projectId avec parent $parentPhaseId');
+      
+      // Récupérer les phases restantes du même niveau (même projet et même parent)
+      final List<dynamic> remainingPhases = await _supabase
+          .from('phases')
+          .select('id, order_index')
+          .eq('project_id', projectId)
+          .filter('parent_phase_id', parentPhaseId == null ? 'is' : 'eq', 
+              parentPhaseId == null ? null : parentPhaseId)
+          .order('order_index', ascending: true);
+      
+      print('Phases restantes à réindexer: ${remainingPhases.length}');
+      
+      // Mettre à jour les indices
+      for (int i = 0; i < remainingPhases.length; i++) {
+        await _supabase
+            .from('phases')
+            .update({'order_index': i})
+            .eq('id', remainingPhases[i]['id']);
+      }
+      
+    } catch (e) {
+      print('Erreur lors de la réindexation des phases: $e');
+      // Ne pas propager l'erreur pour ne pas bloquer la suppression
+    }
+  }
+  
   // Réordonner les phases
   Future<void> reorderPhases(List<Phase> phases) async {
     try {

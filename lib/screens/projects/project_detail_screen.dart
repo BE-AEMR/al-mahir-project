@@ -909,24 +909,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                       color: Colors.grey,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => PhasesScreen(
-                            project: _project!,
-                          ),
-                        ),
-                      );
-                      if (result == true) {
-                        _loadProjectPhases();
-                      }
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('Ajouter une phase'),
-                  ),
                 ],
               ),
             ),
@@ -2440,24 +2422,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     style: TextStyle(
                       color: Colors.grey,
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => TransactionFormScreen(
-                            projectId: _project!.id,
-                          ),
-                        ),
-                      );
-                      if (result == true) {
-                        _loadProjectBudget();
-                      }
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('Ajouter une transaction'),
                   ),
                 ],
               ),

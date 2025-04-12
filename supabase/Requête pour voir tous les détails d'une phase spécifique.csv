@@ -1,0 +1,2 @@
+id,project_id,name,description,created_at,updated_at,created_by,order_index,status,budget_allocated,budget_consumed,parent_phase_id,related_tasks_count
+87b78e56-7a09-442d-a2a4-c34dd4fc6214,166e3717-b37e-4c05-b6d3-0a4bfd46705f,phase 2,,2025-03-20 17:39:06.113+00,2025-04-12 14:56:00.802+00,f46b3c58-9d0b-4c21-ba6c-4b8948231b35,1,cancelled,0.00,4200.00,null,0
