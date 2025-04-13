@@ -31,6 +31,22 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   bool _obscureConfirmPassword = true;
 
   @override
+  void initState() {
+    super.initState();
+    // Vérifier si l'utilisateur est authentifié temporairement via le token
+    print('Token reçu pour la réinitialisation: ${widget.token}');
+    
+    // Vérifier l'état de la session
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null) {
+      print('Session active trouvée. Utilisateur temporairement authentifié.');
+    } else {
+      print('Aucune session active. L\'utilisateur devra peut-être se reconnecter.');
+      _errorMessage = 'Session expirée. Veuillez demander un nouveau lien de réinitialisation.';
+    }
+  }
+
+  @override
   void dispose() {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -49,12 +65,19 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     });
 
     try {
-      print('Tentative de réinitialisation du mot de passe avec token: ${widget.token}');
+      print('Tentative de réinitialisation du mot de passe');
       
-      // Utiliser la méthode de mise à jour du mot de passe avec le token de réinitialisation
-      await Supabase.instance.client.auth.resetPasswordForEmail(
-        _passwordController.text,
-        token: widget.token,
+      // Vérifier si l'utilisateur est authentifié temporairement
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session == null) {
+        throw Exception('Session expirée. Veuillez demander un nouveau lien de réinitialisation.');
+      }
+      
+      // Mettre à jour le mot de passe de l'utilisateur actuellement authentifié
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(
+          password: _passwordController.text,
+        ),
       );
 
       if (mounted) {
@@ -72,7 +95,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     } catch (e) {
       print('Erreur générale: $e');
       setState(() {
-        _errorMessage = 'Une erreur s\'est produite: $e';
+        _errorMessage = e.toString();
         _isLoading = false;
       });
     }
