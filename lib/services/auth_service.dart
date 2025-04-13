@@ -94,9 +94,13 @@ class AuthService {
   Future<void> resetPassword({required String email}) async {
     try {
       print('Tentative d\'envoi de réinitialisation de mot de passe pour: $email');
+      
+      // Utiliser l'URL GitHub Pages pour la redirection (dans le dossier docs)
+      final redirectUrl = 'https://be-aemr.github.io/al-mahir-project/auth/reset-password';
+      
       await _client.auth.resetPasswordForEmail(
         email,
-        redirectTo: 'almahir://reset-password', // URL deeplink pour les applications mobiles
+        redirectTo: redirectUrl, // URL de redirection vers GitHub Pages
       );
       print('Email de réinitialisation envoyé avec succès');
     } catch (e) {
