@@ -49,11 +49,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     });
 
     try {
-      // Utiliser la méthode de mise à jour du mot de passe avec le token
-      await Supabase.instance.client.auth.updateUser(
-        UserAttributes(
-          password: _passwordController.text,
-        ),
+      print('Tentative de réinitialisation du mot de passe avec token: ${widget.token}');
+      
+      // Utiliser la méthode de mise à jour du mot de passe avec le token de réinitialisation
+      await Supabase.instance.client.auth.resetPasswordForEmail(
+        _passwordController.text,
+        token: widget.token,
       );
 
       if (mounted) {
@@ -63,11 +64,13 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         });
       }
     } on AuthException catch (e) {
+      print('Erreur AuthException: ${e.message}');
       setState(() {
         _errorMessage = e.message;
         _isLoading = false;
       });
     } catch (e) {
+      print('Erreur générale: $e');
       setState(() {
         _errorMessage = 'Une erreur s\'est produite: $e';
         _isLoading = false;

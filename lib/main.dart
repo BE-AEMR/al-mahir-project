@@ -142,9 +142,12 @@ void _processLink(String link) {
     }
     // Gérer les liens de réinitialisation de mot de passe
     else if (uri.host == 'reset-password' || uri.path == '/reset-password') {
-      // Supabase envoie un paramètre 'code' au lieu de 'token'/'type'
-      final code = uri.queryParameters['code'] ?? '';
-
+      print("==== DEEPLINK RÉINITIALISATION MOT DE PASSE DÉTECTÉ ====\nURI complète: $uri");
+      print("Paramètres reçus: ${uri.queryParameters}");
+      
+      // Récupérer le code, soit depuis le paramètre 'code' (Supabase) soit depuis 'token' (notre page web)
+      final code = uri.queryParameters['code'] ?? uri.queryParameters['token'] ?? '';
+      
       if (code.isNotEmpty) {
         print("Réinitialisation de mot de passe - Code: $code");
 
@@ -153,9 +156,14 @@ void _processLink(String link) {
           '/reset-password',
           arguments: {
             'token': code, // On utilise le code comme token
+            'uri': uri.toString(), // Passer l'URI complète pour débogage
           },
         );
+        print("Navigation vers l'écran de réinitialisation initiée avec succès");
+      } else {
+        print("ERREUR: Code manquant dans l'URL de réinitialisation - Impossible de procéder");
       }
+      print("=======================================");
     }
     // Gérer les liens de confirmation de compte
     else if (uri.host == 'account-confirmation' || uri.path == '/account-confirmation') {
