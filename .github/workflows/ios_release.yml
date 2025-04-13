@@ -2,9 +2,9 @@ name: iOS Release
 
 on:
   push:
-    branches: [ "feature/quick-fix-and-new-db-prod" ]
+    branches: [ "dev" ]
   pull_request:
-    branches: [ "feature/quick-fix-and-new-db-prod" ]
+    branches: [ "dev" ]
 
 jobs:
   build:
