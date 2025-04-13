@@ -52,10 +52,14 @@ class AuthService {
   }) async {
     try {
       print('Tentative d\'inscription avec email: $email');
+      
+      // Utiliser l'URL GitHub Pages pour la redirection (dans le dossier docs)
+      final redirectUrl = 'https://be-aemr.github.io/al-mahir-project/auth/callback';
+      
       final response = await _client.auth.signUp(
         email: email,
         password: password,
-        emailRedirectTo: 'almahir://account-confirmation', // URL deeplink pour la confirmation de compte
+        emailRedirectTo: redirectUrl, // URL de redirection vers GitHub Pages
       );
 
       // Ajouter le displayName au profil utilisateur
