@@ -1,0 +1,17 @@
+schemaname,tablename,policyname,permissive,roles,cmd,qual
+public,phases,Utilisateurs peuvent supprimer les phases des projets qu'ils on,PERMISSIVE,{public},DELETE,"(EXISTS ( SELECT 1
+   FROM projects
+  WHERE ((projects.id = phases.project_id) AND (projects.created_by = auth.uid()))))"
+public,phases,Utilisateurs peuvent créer des phases pour leurs projets,PERMISSIVE,{public},INSERT,null
+public,phases,Utilisateurs peuvent mettre à jour les phases de leurs projets,PERMISSIVE,{public},UPDATE,"(EXISTS ( SELECT 1
+   FROM projects
+  WHERE ((projects.id = phases.project_id) AND ((projects.created_by = auth.uid()) OR ((auth.uid())::text = ANY (projects.members)) OR (EXISTS ( SELECT 1
+           FROM (team_projects tp
+             JOIN team_members tm ON ((tp.team_id = tm.team_id)))
+          WHERE ((tp.project_id = phases.project_id) AND (tm.user_id = auth.uid()) AND (tm.status = 'active'::text))))))))"
+public,phases,Utilisateurs peuvent voir les phases des projets auxquels ils a,PERMISSIVE,{public},SELECT,"(EXISTS ( SELECT 1
+   FROM projects
+  WHERE ((projects.id = phases.project_id) AND ((projects.created_by = auth.uid()) OR ((auth.uid())::text = ANY (projects.members)) OR (EXISTS ( SELECT 1
+           FROM (team_projects tp
+             JOIN team_members tm ON ((tp.team_id = tm.team_id)))
+          WHERE ((tp.project_id = phases.project_id) AND (tm.user_id = auth.uid()) AND (tm.status = 'active'::text))))))))"

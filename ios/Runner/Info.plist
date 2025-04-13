@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0.14</string>
+	<string>1.0.15</string>
 	<key>CFBundleSignature</key>
-	<string>14</string>
+	<string>15</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
@@ -62,5 +62,20 @@
 	<string>Al Mahir Project a besoin d'accéder à votre microphone pour l'enregistrement audio lors de la capture de vidéos.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Al Mahir Project a besoin d'accéder à votre photothèque pour y sauvegarder les documents et images des projets.</string>
+	
+	<!-- Configuration pour les URL Schemes -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>fr.almahir</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>almahir</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

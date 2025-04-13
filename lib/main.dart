@@ -119,6 +119,8 @@ Future<void> _handleDeepLinks() async {
 void _processLink(String link) {
   try {
     final uri = Uri.parse(link);
+    print("Traitement du lien: $link");
+    print("URI parsée: $uri");
 
     if (uri.host == 'invitation' || uri.path == '/invitation') {
       // Extraire les paramètres
@@ -160,10 +162,11 @@ void _processLink(String link) {
       print("==== DEEPLINK CONFIRMATION COMPTE DÉTECTÉ ====\nURI complète: $uri");
       print("Paramètres reçus: ${uri.queryParameters}");
 
-      // Supabase envoie un paramètre 'code' au lieu de 'token'/'type'
-      final code = uri.queryParameters['code'] ?? '';
+      // Récupérer le code, soit depuis le paramètre 'code' (Supabase) soit depuis 'token' (notre page web)
+      final code = uri.queryParameters['code'] ?? uri.queryParameters['token'] ?? '';
       final otherParams = Map<String, String>.from(uri.queryParameters);
       otherParams.remove('code');
+      otherParams.remove('token');
 
       print("Code extrait: ${code.isEmpty ? 'VIDE' : code}");
       print("Autres paramètres: $otherParams");
