@@ -7,7 +7,7 @@ import 'login_screen.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   final String token;
-  
+
   const ResetPasswordScreen({
     super.key,
     required this.token,
@@ -21,30 +21,14 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  
+
   final AuthService _authService = AuthService();
-  
+
   bool _isLoading = false;
   String? _errorMessage;
   bool _isSuccess = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-
-  @override
-  void initState() {
-    super.initState();
-    // Vérifier si l'utilisateur est authentifié temporairement via le token
-    print('Token reçu pour la réinitialisation: ${widget.token}');
-    
-    // Vérifier l'état de la session
-    final session = Supabase.instance.client.auth.currentSession;
-    if (session != null) {
-      print('Session active trouvée. Utilisateur temporairement authentifié.');
-    } else {
-      print('Aucune session active. L\'utilisateur devra peut-être se reconnecter.');
-      _errorMessage = 'Session expirée. Veuillez demander un nouveau lien de réinitialisation.';
-    }
-  }
 
   @override
   void dispose() {
@@ -65,15 +49,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     });
 
     try {
-      print('Tentative de réinitialisation du mot de passe');
-      
-      // Vérifier si l'utilisateur est authentifié temporairement
-      final session = Supabase.instance.client.auth.currentSession;
-      if (session == null) {
-        throw Exception('Session expirée. Veuillez demander un nouveau lien de réinitialisation.');
-      }
-      
-      // Mettre à jour le mot de passe de l'utilisateur actuellement authentifié
+      // Utiliser la méthode de mise à jour du mot de passe avec le token
       await Supabase.instance.client.auth.updateUser(
         UserAttributes(
           password: _passwordController.text,
@@ -87,15 +63,13 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         });
       }
     } on AuthException catch (e) {
-      print('Erreur AuthException: ${e.message}');
       setState(() {
         _errorMessage = e.message;
         _isLoading = false;
       });
     } catch (e) {
-      print('Erreur générale: $e');
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = 'Une erreur s\'est produite: $e';
         _isLoading = false;
       });
     }
@@ -119,7 +93,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               ),
             ),
           ),
-          
+
           // Motif islamique en arrière-plan
           Positioned.fill(
             child: Opacity(
@@ -129,7 +103,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               ),
             ),
           ),
-          
+
           // Contenu principal
           SafeArea(
             child: Center(
@@ -139,7 +113,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Logo 
+                    // Logo
                     Center(
                       child: const LogoWidget(
                         isGold: false, // Logo blanc pour l'écran de réinitialisation
@@ -148,9 +122,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         animationDuration: Duration(milliseconds: 1500),
                       ),
                     ),
-                    
+
                     const SizedBox(height: 32),
-                    
+
                     // Titre
                     const Text(
                       'Réinitialiser votre mot de passe',
@@ -161,9 +135,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // Description
                     Text(
                       'Veuillez créer un nouveau mot de passe pour votre compte.',
@@ -173,9 +147,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    
+
                     const SizedBox(height: 40),
-                    
+
                     // Formulaire de réinitialisation
                     if (!_isSuccess)
                       Container(
@@ -247,9 +221,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                   return null;
                                 },
                               ),
-                              
+
                               const SizedBox(height: 20),
-                              
+
                               // Confirmation du mot de passe
                               TextFormField(
                                 controller: _confirmPasswordController,
@@ -297,9 +271,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                   return null;
                                 },
                               ),
-                              
+
                               const SizedBox(height: 24),
-                              
+
                               // Message d'erreur
                               if (_errorMessage != null)
                                 Container(
@@ -318,9 +292,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                     textAlign: TextAlign.center,
                                   ),
                                 ),
-                              
+
                               if (_errorMessage != null) const SizedBox(height: 24),
-                              
+
                               // Bouton de réinitialisation
                               ElevatedButton(
                                 onPressed: _isLoading ? null : _updatePassword,
@@ -355,7 +329,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                           ),
                         ),
                       ),
-                    
+
                     // Message de succès
                     if (_isSuccess)
                       Container(

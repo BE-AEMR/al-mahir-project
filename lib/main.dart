@@ -142,11 +142,14 @@ void _processLink(String link) {
     }
     // Gérer les liens de réinitialisation de mot de passe
     else if (uri.host == 'reset-password' || uri.path == '/reset-password') {
-      print("==== DEEPLINK RÉINITIALISATION MOT DE PASSE DÉTECTÉ ====\nURI complète: $uri");
+      print("==== DEEPLINK RÉINITIALISATION MOT DE PASSE DÉTECTÉ ====");
+      print("URI complète: $uri");
       print("Paramètres reçus: ${uri.queryParameters}");
       
       // Récupérer le code, soit depuis le paramètre 'code' (Supabase) soit depuis 'token' (notre page web)
       final code = uri.queryParameters['code'] ?? uri.queryParameters['token'] ?? '';
+      
+      print("Code extrait: ${code.isEmpty ? 'VIDE' : code}");
       
       if (code.isNotEmpty) {
         print("Réinitialisation de mot de passe - Code: $code");
@@ -156,7 +159,6 @@ void _processLink(String link) {
           '/reset-password',
           arguments: {
             'token': code, // On utilise le code comme token
-            'uri': uri.toString(), // Passer l'URI complète pour débogage
           },
         );
         print("Navigation vers l'écran de réinitialisation initiée avec succès");
