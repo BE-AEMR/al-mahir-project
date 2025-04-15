@@ -72,19 +72,25 @@
     document.addEventListener('DOMContentLoaded', function() {
       // Extraire les paramètres de l'URL
       const urlParams = new URLSearchParams(window.location.search);
-      const token = urlParams.get('token') || '';
+      const code = urlParams.get('code') || '';
       const type = urlParams.get('type') || '';
+      
+      console.log("URL reçue:", window.location.href);
+      console.log("Paramètres:", urlParams.toString());
+      console.log("Code extrait:", code);
       
       // Construire l'URL de redirection vers l'application mobile
       let redirectUrl = 'almahir://reset-password';
       
       // Ajouter les paramètres nécessaires
-      if (token) {
-        redirectUrl += `?code=${token}`;
+      if (code) {
+        redirectUrl += `?code=${code}`;
         if (type) {
           redirectUrl += `&type=${type}`;
         }
       }
+      
+      console.log("URL de redirection:", redirectUrl);
       
       // Configurer le bouton de redirection manuelle
       const manualRedirectBtn = document.getElementById('manual-redirect');
