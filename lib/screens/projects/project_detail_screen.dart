@@ -2241,16 +2241,51 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         const Icon(Icons.person_outline, size: 16, color: Colors.grey),
                         const SizedBox(width: 4),
                         Expanded(
-                          child: Text(
-                            task.assignedTo != null
-                                ? _userDisplayNames[task.assignedTo] ?? 'Utilisateur'
-                                : 'Non assigné',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[700],
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  task.assignedTo != null
+                                      ? _userDisplayNames[task.assignedTo] ?? 'Utilisateur'
+                                      : 'Non assigné',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[700],
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              // Bouton d'auto-assignation pour les tâches non assignées
+                              if (task.assignedTo == null)
+                                InkWell(
+                                  onTap: () async {
+                                    await _selfAssignTask(task);
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Theme.of(context).primaryColor.withOpacity(0.5),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'S\'attribuer',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: Theme.of(context).primaryColor,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ],
@@ -2451,6 +2486,85 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           ),
       ],
     );
+  }
+
+  /// Méthode pour auto-assigner une tâche à l'utilisateur courant
+  Future<void> _selfAssignTask(Task task) async {
+    try {
+      // Vérifier les permissions d'assignation de tâche
+      final hasAssignPermission = await _roleService.hasPermission('assign_task',
+          projectId: task.projectId);
+
+      if (!hasAssignPermission) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Vous n'avez pas la permission d'assigner des tâches"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Vérifier que l'utilisateur est membre du projet
+      final userId = await _userService.getCurrentUserId();
+      if (userId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Erreur: Impossible d\'identifier l\'utilisateur actuel'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      final isMember = await _projectService.isUserProjectMember(task.projectId, userId);
+      if (!isMember) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Vous devez être membre du projet pour vous assigner cette tâche'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Assigner la tâche à l'utilisateur
+      final updatedTask = task.copyWith(assignedTo: userId);
+      await _projectService.updateTask(updatedTask);
+
+      // Mettre à jour l'affichage
+      setState(() {
+        final index = _tasks.indexWhere((t) => t.id == task.id);
+        if (index != -1) {
+          _tasks[index] = updatedTask;
+        }
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Tâche assignée à ${_userDisplayNames[userId] ?? "vous"}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Erreur lors de l\'auto-assignation de la tâche: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de l\'auto-assignation: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Color _getBudgetColor(double usagePercentage) {
