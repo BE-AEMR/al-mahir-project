@@ -16,6 +16,7 @@ import '../../widgets/rbac_gated_screen.dart';
 import '../../widgets/permission_gated.dart';
 import '../tasks/task_form_screen.dart';
 import '../tasks/task_detail_screen.dart';
+import '../tasks/task_csv_import_screen.dart';
 import '../budget/budget_allocation_screen.dart';
 import '../budget/transaction_form_screen.dart';
 import 'phases/phases_screen.dart';
@@ -1484,6 +1485,29 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               },
               icon: const Icon(Icons.add),
               label: const Text('Ajouter'),
+            ),
+            // Bouton d'importation CSV
+            PermissionGated(
+              permissionName: 'create_task',
+              projectId: _project!.id,
+              child: TextButton.icon(
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TaskCsvImportScreen(projectId: _project!.id),
+                    ),
+                  );
+                  if (result == true) {
+                    _loadProjectDetails();
+                  }
+                },
+                icon: const Icon(Icons.upload_file),
+                label: const Text('Importer CSV'),
+                style: TextButton.styleFrom(
+                  backgroundColor: Colors.blue.withOpacity(0.1),
+                ),
+              ),
             ),
           ],
         ),
