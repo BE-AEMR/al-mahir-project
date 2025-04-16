@@ -1,8 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:html' as html;
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+// Solution cross-platform pour le web
+import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -233,20 +237,43 @@ class _TaskCsvImportScreenState extends State<TaskCsvImportScreen> {
     try {
       // Générer le contenu CSV
       final csvContent = await _csvImportService.generateCsvFromTasks(widget.projectId);
+      final fileName = 'tasks_template.csv';
       
-      // Télécharger le fichier sur le web
-      final blob = html.Blob([csvContent], 'text/csv');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', 'tasks_template.csv')
-        ..style.display = 'none';
-      
-      html.document.body?.children.add(anchor);
-      anchor.click();
-      
-      // Nettoyer
-      html.document.body?.children.remove(anchor);
-      html.Url.revokeObjectUrl(url);
+      if (kIsWeb) {
+        // Solution pour le web utilisant universal_html (compatible avec iOS)
+        final bytes = utf8.encode(csvContent);
+        
+        // Créer un objet Blob depuis les données CSV
+        final blob = html.Blob([bytes], 'text/csv');
+        
+        // Créer une URL pour le Blob
+        final url = html.Url.createObjectUrlFromBlob(blob);
+        
+        // Créer un lien invisible et simuler un clic pour le téléchargement
+        final anchor = html.AnchorElement(href: url)
+          ..setAttribute('download', fileName)
+          ..style.display = 'none';
+        
+        // Ajouter l'élément au DOM, cliquer, puis le retirer
+        html.document.body!.children.add(anchor);
+        anchor.click();
+        html.document.body!.children.remove(anchor);
+        
+        // Libérer l'URL
+        html.Url.revokeObjectUrl(url);
+      } else {
+        // Solution pour mobile et desktop
+        final directory = await getTemporaryDirectory();
+        final path = '${directory.path}/$fileName';
+        final file = File(path);
+        await file.writeAsString(csvContent);
+        
+        // Partager le fichier avec d'autres applications
+        await Share.shareXFiles(
+          [XFile(path)],
+          subject: 'Modèle de tâches CSV',
+        );
+      }
       
       // Afficher une confirmation 
       ScaffoldMessenger.of(context).showSnackBar(
