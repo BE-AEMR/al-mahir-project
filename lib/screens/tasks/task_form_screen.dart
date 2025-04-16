@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/task_model.dart';
 import '../../models/phase_model.dart';
@@ -69,6 +70,18 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     _loadPhases();
     _loadTeams();
     _loadTeamMembers();
+    
+    // Délai pour s'assurer que le contexte est disponible pour ModalRoute
+    Future.microtask(() {
+      // Vérifier si une date d'échéance est passée via les arguments de la route
+      final routeArgs = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (routeArgs != null && routeArgs.containsKey('dueDate')) {
+        setState(() {
+          _dueDate = routeArgs['dueDate'] as DateTime;
+          print('DEBUG: Date d\'échéance préremplie: $_dueDate');
+        });
+      }
+    });
 
     if (widget.task != null) {
       _titleController.text = widget.task!.title;
@@ -240,12 +253,16 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
         return;
       }
 
+      // Vérifier si l'utilisateur a des rôles spéciaux
+      final userRoles = await _roleService.getUserRolesWithoutParam();
+      final hasAdminRights = userRoles.contains('system_admin') || userRoles.contains('project_manager');
+      
       String? taskId;
-
+      
+      // 1. Nouvelle tâche
       if (widget.task == null) {
-        // Créer une nouvelle tâche
         final newTask = Task(
-          id: Uuid().v4(), // Générer un ID unique
+          id: Uuid().v4(),
           projectId: widget.projectId,
           phaseId: _selectedPhaseId,
           subPhaseId: _selectedSubPhaseId,
@@ -261,36 +278,118 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
 
         final createdTask = await _projectService.createTask(newTask);
         taskId = createdTask.id;
-      } else {
-        // Récupérer l'ancienne tâche pour comparer les changements
+      } 
+      // 2. Mise à jour d'une tâche existante
+      else {
         final oldTask = widget.task!;
-
-        // Créer la tâche mise à jour
-        final updatedTask = oldTask.copyWith(
-          title: _titleController.text.trim(),
-          description: _descriptionController.text.trim(),
-          updatedAt: DateTime.now(),
-          assignedTo: _assignToTeam ? null : _selectedMemberId,
-          status: _status,
-          priority: _priority,
-          dueDate: _dueDate,
-          phaseId: _selectedPhaseId,
-          subPhaseId: _selectedSubPhaseId,
-        );
-
-        // Utiliser la méthode updateTask mise à jour qui prend en compte les changements
-        await _projectService.updateTask(updatedTask, oldTask: oldTask);
+        
+        // Si passage d'un assigné individuel à une équipe et l'utilisateur n'a pas de droits d'admin
+        if (_assignToTeam && oldTask.assignedTo != null && !hasAdminRights) {
+          // 2.1 D'abord associer à l'équipe (fonctionne car l'utilisateur est le créateur ou l'assigné)
+          if (_selectedTeamId != null) {
+            await _teamService.assignTaskToTeam(oldTask.id, _selectedTeamId!);
+          }
+          
+          // 2.2 Ensuite mettre à jour la tâche
+          final updatedTask = oldTask.copyWith(
+            title: _titleController.text.trim(),
+            description: _descriptionController.text.trim(),
+            updatedAt: DateTime.now(),
+            assignedTo: null, // Enlever l'assignation individuelle
+            status: _status,
+            priority: _priority,
+            dueDate: _dueDate,
+            phaseId: _selectedPhaseId,
+            subPhaseId: _selectedSubPhaseId,
+          );
+          
+          await _projectService.updateTask(updatedTask, oldTask: oldTask);
+        } else {
+          // Cas standard ou utilisateur avec droits d'admin
+          final updatedTask = oldTask.copyWith(
+            title: _titleController.text.trim(),
+            description: _descriptionController.text.trim(),
+            updatedAt: DateTime.now(),
+            assignedTo: _assignToTeam ? null : _selectedMemberId,
+            status: _status,
+            priority: _priority,
+            dueDate: _dueDate,
+            phaseId: _selectedPhaseId,
+            subPhaseId: _selectedSubPhaseId,
+          );
+          
+          await _projectService.updateTask(updatedTask, oldTask: oldTask);
+        }
+        
         taskId = oldTask.id;
       }
 
-      // Gérer l'assignation d'équipe si nécessaire
+      // 3. Gestion des associations avec les équipes
       if (_assignToTeam && _selectedTeamId != null) {
-        // D'abord supprimer toutes les associations d'équipes existantes
+        print('DEBUG: TRANSITION - Début de l\'assignation à l\'équipe ${_selectedTeamId}');
+        
+        // Récupérer l'état initial de la tâche pour traçage
+        final taskBeforeTeamAssignment = await _projectService.getTaskById(taskId);
+        print('DEBUG: ÉTAT AVANT ÉQUIPE - Task $taskId: assigned_to=${taskBeforeTeamAssignment.assignedTo}, teamId avant association=$_selectedTeamId');
+        
+        // Supprimer toutes les associations d'équipes existantes
         await _teamService.removeAllTeamsFromTask(taskId);
-
-        // Puis ajouter la nouvelle association
+        print('DEBUG: ASSOCIATIONS ÉQUIPES SUPPRIMÉES pour tâche $taskId');
+        
+        // Ajouter la nouvelle association
         await _teamService.assignTaskToTeam(taskId, _selectedTeamId!);
-      }
+        print('DEBUG: TÂCHE ASSIGNÉE À ÉQUIPE $_selectedTeamId');
+        
+        // Vérification de l'état intermédiaire
+        final taskAfterTeamAssignment = await _projectService.getTaskById(taskId);
+        print('DEBUG: ÉTAT INTERMÉDIAIRE - Task $taskId: assigned_to=${taskAfterTeamAssignment.assignedTo}, équipe associée');
+        
+        // Si assignedTo est encore rempli, forcer à null explicitement
+        if (taskAfterTeamAssignment.assignedTo != null) {
+          print('DEBUG: TENTATIVE CORRECTION - Tâche toujours assignée à ${taskAfterTeamAssignment.assignedTo}, forçage à null...');
+          
+          // Version 1: UPDATE direct via service
+          final updateResult = await _projectService.updateTask(
+            taskAfterTeamAssignment.copyWith(assignedTo: null),
+            oldTask: taskAfterTeamAssignment
+          );
+          print('DEBUG: RÉSULTAT CORRECTION - Mise à jour effectuée: ${updateResult != null}');
+          
+          // Vérification post-correction
+          final taskFinal = await _projectService.getTaskById(taskId);
+          print('DEBUG: ÉTAT FINAL - Task $taskId: assigned_to=${taskFinal.assignedTo}, correction réussie: ${taskFinal.assignedTo == null}');
+          
+          // Version 2: Si toujours pas corrigé, essayer UPDATE SQL direct
+          if (taskFinal.assignedTo != null) {
+            print('DEBUG: ÉCHEC CORRECTION DART - Tentative SQL directe');
+            try {
+              // Utiliser directement Supabase pour une requête SQL si le modèle Dart échoue
+              final client = Supabase.instance.client;
+              final response = await client
+                .from('tasks')
+                .update({'assigned_to': null})
+                .eq('id', taskId);
+              
+              print('DEBUG: RÉSULTAT SQL DIRECT: $response');
+              
+              // Vérification finale
+              final taskAfterSQL = await _projectService.getTaskById(taskId);
+              print('DEBUG: APRÈS SQL DIRECT - assigned_to=${taskAfterSQL.assignedTo}');
+            } catch (sqlError) {
+              print('DEBUG: ERREUR SQL DIRECT: $sqlError');
+            }
+          }
+        }
+      } else if (!_assignToTeam && _selectedMemberId != null) {
+        // Si on assigne à un individu, supprimer les associations d'équipes
+        print('DEBUG: TRANSITION - Assignation individuelle à $_selectedMemberId');
+        await _teamService.removeAllTeamsFromTask(taskId);
+        print('DEBUG: ASSOCIATIONS ÉQUIPES SUPPRIMÉES pour assignation individuelle');
+        
+        // Vérification finale
+        final taskFinal = await _projectService.getTaskById(taskId);
+        print('DEBUG: ÉTAT FINAL INDIVIDU - assigned_to=${taskFinal.assignedTo}, attendu: $_selectedMemberId');
+      }  
 
       if (mounted) {
         Navigator.pop(context, true); // Retourner à l'écran précédent avec un résultat

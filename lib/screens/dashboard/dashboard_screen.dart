@@ -1427,8 +1427,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   final hasAccess = snapshot.data ?? false;
 
                   if (hasAccess) {
+                    // Adaptation dynamique de la hauteur selon la taille d'écran
+                    final screenWidth = MediaQuery.of(context).size.width;
+                    final height = screenWidth >= 600 ? 820.0 : 730.0; // Augmentation de la hauteur sur les grands écrans
+                    
                     return SizedBox(
-                      height: 730,
+                      height: height,
                       // Utilisation de RepaintBoundary pour isoler cette section coûteuse
                       // et éviter sa reconstruction si elle n'a pas changé
                       child: RepaintBoundary(
@@ -1486,9 +1490,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               // Espacement adaptatif basé sur la largeur d'écran
               Builder(builder: (context) {
                 double screenWidth = MediaQuery.of(context).size.width;
-                // Sur les grands écrans (≥600px), réduire considérablement l'espacement
-                // puisque "Tâches à venir" a été déplacé vers le haut
-                double height = screenWidth >= 600 ? 5 : 30;
+                // Sur les grands écrans (≥600px), augmenter l'espacement pour éviter le chevauchement
+                // des sections "Tâches à venir" et "Phases en cours"
+                double height = screenWidth >= 600 ? 40 : 30;
                 return SizedBox(height: height);
               }),
 
@@ -1552,14 +1556,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 24),
 
               // Section de l'historique des tâches - Nécessite read_task
-              FutureBuilder<bool>(
-                future: _checkTasksAccessPermission(),
+              FutureBuilder<Map<String, dynamic>>(
+                future: _getAccessControlInfo(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  final hasAccess = snapshot.data ?? false;
+                  final accessInfo = snapshot.data;
+                  final hasAccess = accessInfo?['hasAccess'] ?? false;
+                  final hasFullAccess = accessInfo?['hasFullAccess'] ?? false;
+                  final accessibleProjectIds = accessInfo?['accessibleProjectIds'] as List<String>?;
 
                   if (hasAccess) {
                     return SizedBox(
@@ -1571,6 +1578,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           userDisplayNames: _userDisplayNames,
                           tasksMap: _tasksMap,
                           onTaskTap: _navigateToTaskDetails,
+                          // Informations RBAC
+                          hasFullAccess: hasFullAccess,
+                          accessibleProjectIds: accessibleProjectIds ?? [],
                         ),
                       ),
                     );
@@ -1648,16 +1658,76 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final userRoles = await _roleService.getUserRolesWithoutParam();
 
       if (userRoles.contains('observer')) {
+        // Mettre en cache le résultat
+        _permissionCache['read_transaction'] = Future.value(true);
         return true;
       }
 
-      // Si n'est pas un observer, vérifier la permission standard
-      final hasPermission = await Provider.of<RoleProvider>(context, listen: false)
-          .hasPermission('read_transaction');
+      // Sinon, vérifier la permission spécifique
+      final roleProvider = Provider.of<RoleProvider>(context, listen: false);
+      final hasPermission = await roleProvider.hasPermission('read_transaction');
+      
+      // Mettre en cache le résultat
+      _permissionCache['read_transaction'] = Future.value(hasPermission);
       return hasPermission;
     } catch (e) {
-      print('Erreur lors de la vérification de l\'accès aux finances: $e');
+      print('DASHBOARD TRACKING: Erreur lors de la vérification des permissions: $e');
       return false;
+    }
+  }
+  
+  // Méthode pour obtenir les informations d'accès complètes pour le RBAC
+  Future<Map<String, dynamic>> _getAccessControlInfo() async {
+    try {
+      // Vérifier d'abord si l'utilisateur a le rôle "observer" (accès complet)
+      final userRoles = await _roleService.getUserRolesWithoutParam();
+      final isObserver = userRoles.contains('observer');
+      
+      // Si l'utilisateur est observateur, il a accès à tout
+      if (isObserver) {
+        return {
+          'hasAccess': true,
+          'hasFullAccess': true,
+          'accessibleProjectIds': _projectsList.map((p) => p.id).toList(),
+        };
+      }
+      
+      // Sinon, vérifier l'accès aux tâches
+      final roleProvider = Provider.of<RoleProvider>(context, listen: false);
+      final hasTaskAccess = await roleProvider.hasPermission('read_task');
+      
+      if (!hasTaskAccess) {
+        return {'hasAccess': false};
+      }
+      
+      // Récupérer les projets accessibles par l'utilisateur
+      List<String> accessibleProjectIds = [];
+      
+      // Si l'utilisateur est le créateur du projet ou membre, il y a accès
+      final userId = await _userService.getCurrentUserId();
+      
+      for (final project in _projectsList) {
+        // Si l'utilisateur est le créateur du projet
+        if (project.createdBy == userId) {
+          accessibleProjectIds.add(project.id);
+          continue;
+        }
+        
+        // Vérifier si l'utilisateur est membre du projet
+        final isMember = await _projectService.isUserProjectMember(project.id, userId);
+        if (isMember) {
+          accessibleProjectIds.add(project.id);
+        }
+      }
+      
+      return {
+        'hasAccess': true,
+        'hasFullAccess': false,
+        'accessibleProjectIds': accessibleProjectIds,
+      };
+    } catch (e) {
+      print('DASHBOARD TRACKING: Erreur lors de la récupération des infos d\'accès: $e');
+      return {'hasAccess': false};
     }
   }
 }

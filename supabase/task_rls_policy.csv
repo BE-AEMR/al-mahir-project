@@ -1,0 +1,51 @@
+schemaname,tablename,policyname,permissive,roles,cmd,qual,with_check
+public,tasks,Users can delete tasks in their projects,PERMISSIVE,{public},DELETE,"((auth.uid() = created_by) OR (auth.uid() IN ( SELECT projects.created_by
+   FROM projects
+  WHERE (projects.id = tasks.project_id))))",null
+public,tasks,Users can delete their own tasks or team tasks,PERMISSIVE,{public},DELETE,"((created_by = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (team_tasks tt
+     JOIN team_members tm ON ((tt.team_id = tm.team_id)))
+  WHERE ((tt.task_id = tasks.id) AND (tm.user_id = auth.uid()) AND (tm.role = 'admin'::text) AND (tm.status = 'active'::text)))))",null
+public,tasks,Users can insert tasks,PERMISSIVE,{public},INSERT,null,"((created_by = auth.uid()) AND ((assigned_to IS NULL) OR (assigned_to = (auth.uid())::text) OR (EXISTS ( SELECT 1
+   FROM (team_members tm
+     JOIN team_members current_user_tm ON ((tm.team_id = current_user_tm.team_id)))
+  WHERE (((tm.user_id)::text = tasks.assigned_to) AND (current_user_tm.user_id = auth.uid()) AND (current_user_tm.role = 'admin'::text) AND (tm.status = 'active'::text) AND (current_user_tm.status = 'active'::text))))))"
+public,tasks,Users can insert tasks in their projects,PERMISSIVE,{public},INSERT,null,"(auth.uid() IN ( SELECT projects.created_by
+   FROM projects
+  WHERE (projects.id = tasks.project_id)))"
+public,tasks,Users can update tasks in their projects,PERMISSIVE,{public},UPDATE,"((auth.uid() = created_by) OR (auth.uid() IN ( SELECT projects.created_by
+   FROM projects
+  WHERE (projects.id = tasks.project_id))))",null
+public,tasks,Users can update their assigned tasks or team tasks,PERMISSIVE,{public},UPDATE,"((assigned_to = (auth.uid())::text) OR (created_by = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (team_tasks tt
+     JOIN team_members tm ON ((tt.team_id = tm.team_id)))
+  WHERE ((tt.task_id = tasks.id) AND (tm.user_id = auth.uid()) AND (tm.role = 'admin'::text) AND (tm.status = 'active'::text)))))",null
+public,tasks,Users can view tasks of their projects,PERMISSIVE,{public},SELECT,"((auth.uid() = created_by) OR (auth.uid() IN ( SELECT projects.created_by
+   FROM projects
+  WHERE (projects.id = tasks.project_id))))",null
+public,tasks,Users can view their assigned tasks or team tasks,PERMISSIVE,{public},SELECT,"((assigned_to = (auth.uid())::text) OR (created_by = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (team_tasks tt
+     JOIN team_members tm ON ((tt.team_id = tm.team_id)))
+  WHERE ((tt.task_id = tasks.id) AND (tm.user_id = auth.uid()) AND (tm.status = 'active'::text)))) OR (EXISTS ( SELECT 1
+   FROM ((projects p
+     JOIN team_projects tp ON ((p.id = tp.project_id)))
+     JOIN team_members tm ON ((tp.team_id = tm.team_id)))
+  WHERE ((tasks.project_id = p.id) AND (tm.user_id = auth.uid()) AND (tm.status = 'active'::text)))))",null
+public,tasks,Utilisateurs peuvent créer des tâches pour les projets auxque,PERMISSIVE,{public},INSERT,null,"(EXISTS ( SELECT 1
+   FROM projects
+  WHERE ((projects.id = tasks.project_id) AND ((projects.created_by = auth.uid()) OR ((auth.uid())::text = ANY (projects.members)) OR (EXISTS ( SELECT 1
+           FROM (team_projects tp
+             JOIN team_members tm ON ((tp.team_id = tm.team_id)))
+          WHERE ((tp.project_id = tasks.project_id) AND (tm.user_id = auth.uid()) AND (tm.status = 'active'::text))))))))"
+public,tasks,Utilisateurs peuvent mettre à jour les tâches des projets aux,PERMISSIVE,{public},UPDATE,"(EXISTS ( SELECT 1
+   FROM projects
+  WHERE ((projects.id = tasks.project_id) AND ((projects.created_by = auth.uid()) OR ((auth.uid())::text = ANY (projects.members)) OR (EXISTS ( SELECT 1
+           FROM (team_projects tp
+             JOIN team_members tm ON ((tp.team_id = tm.team_id)))
+          WHERE ((tp.project_id = tasks.project_id) AND (tm.user_id = auth.uid()) AND (tm.status = 'active'::text))))))))",null
+public,tasks,"Utilisateurs peuvent voir les tâches des projets auxquels ils ",PERMISSIVE,{public},SELECT,"(EXISTS ( SELECT 1
+   FROM projects
+  WHERE ((projects.id = tasks.project_id) AND ((projects.created_by = auth.uid()) OR ((auth.uid())::text = ANY (projects.members)) OR (EXISTS ( SELECT 1
+           FROM (team_projects tp
+             JOIN team_members tm ON ((tp.team_id = tm.team_id)))
+          WHERE ((tp.project_id = tasks.project_id) AND (tm.user_id = auth.uid()) AND (tm.status = 'active'::text))))))))",null
