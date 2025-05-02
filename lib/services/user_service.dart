@@ -6,6 +6,17 @@ class UserService {
   
   // Cache pour les noms d'utilisateurs afin d'éviter de faire trop de requêtes
   final Map<String, String> _displayNameCache = {};
+  
+  /// Récupère l'ID de l'utilisateur actuellement connecté
+  Future<String?> getCurrentUserId() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      return user?.id;
+    } catch (e) {
+      print('Erreur lors de la récupération de l\'ID de l\'utilisateur: $e');
+      return null;
+    }
+  }
 
   // Récupérer le nom d'affichage d'un utilisateur par son ID
   Future<String> getUserDisplayName(String userId) async {

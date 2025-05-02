@@ -32,7 +32,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> with SingleTickerPr
   late TabController _tabController;
   Team? _team;
   List<TeamMember> _members = [];
-  List<Project> _projects = [];
+
   bool _isLoading = true;
   bool _isAdmin = false;
   String? _errorMessage;
@@ -41,12 +41,12 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> with SingleTickerPr
   bool _canUpdateTeam = false;
   bool _canDeleteTeam = false;
   bool _canInviteTeamMember = false;
-  bool _canAddProject = false;
+
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 1, vsync: this);
     _team = widget.team;
     _loadTeamDetails();
     _checkPermissions();
@@ -71,20 +71,16 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> with SingleTickerPr
       final canUpdateTeam = await _roleService.hasPermission('update_team', teamId: _team!.id);
       final canDeleteTeam = await _roleService.hasPermission('delete_team', teamId: _team!.id);
       final canInviteTeamMember = await _roleService.hasPermission('invite_team_member', teamId: _team!.id);
-      final canCreateProject = await _roleService.hasPermission('create_project');
-      
       print('DEBUG: Résultats des permissions:');
       print('- update_team: $canUpdateTeam');
       print('- delete_team: $canDeleteTeam');
       print('- invite_team_member: $canInviteTeamMember');
-      print('- create_project: $canCreateProject');
       
       // Ne plus utiliser le système legacy, faire confiance au système RBAC
       setState(() {
         _canUpdateTeam = canUpdateTeam;
         _canDeleteTeam = canDeleteTeam;
         _canInviteTeamMember = canInviteTeamMember;
-        _canAddProject = canCreateProject;
         _isLoading = false;
       });
     } catch (e) {
@@ -183,13 +179,9 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> with SingleTickerPr
       // Charger les membres de l'équipe
       final members = await _teamService.getTeamMembers(_team!.id);
       
-      // Charger les projets de l'équipe
-      final projects = await _teamService.getTeamProjects(_team!.id);
-      
-      setState(() {
+          setState(() {
         _team = team;
         _members = members;
-        _projects = projects;
         _isLoading = false;
       });
     } catch (e) {
@@ -331,22 +323,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> with SingleTickerPr
     );
   }
 
-  void _showAddProjectDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return ProjectToTeamDialog(
-          teamId: _team!.id,
-          onProjectsAdded: () {
-            _loadTeamDetails();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Projet(s) ajouté(s) avec succès')),
-            );
-          },
-        );
-      },
-    );
-  }
+
 
   void _navigateToInviteMember() {
     if (_team == null) return;
@@ -598,71 +575,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> with SingleTickerPr
           );
   }
 
-  Widget _buildProjectsTab() {
-    if (_projects.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const IslamicPatternPlaceholder(
-              size: 150,
-              color: Colors.grey,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Aucun projet dans cette équipe',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Ajoutez des projets pour collaborer avec votre équipe',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            if (_canAddProject)
-              ElevatedButton.icon(
-                onPressed: _showAddProjectDialog,
-                icon: const Icon(Icons.add),
-                label: const Text('Ajouter un projet'),
-              ),
-          ],
-        ),
-      );
-    }
 
-    return RefreshIndicator(
-      onRefresh: _loadTeamDetails,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _projects.length,
-        itemBuilder: (context, index) {
-          final project = _projects[index];
-          
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            elevation: 2,
-            child: ListTile(
-              title: Text(project.name),
-              subtitle: Text(project.description ?? 'Aucune description'),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ProjectDetailScreen(projectId: project.id),
-                  ),
-                ).then((_) => _loadTeamDetails());
-              },
-            ),
-          );
-        },
-      ),
-    );
-  }
 
   Color _getRoleColor(TeamMemberRole role) {
     switch (role) {
@@ -726,7 +639,6 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> with SingleTickerPr
                       controller: _tabController,
                       tabs: const [
                         Tab(text: 'Membres'),
-                        Tab(text: 'Projets'),
                       ],
                     ),
                     Expanded(
@@ -734,7 +646,6 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> with SingleTickerPr
                         controller: _tabController,
                         children: [
                           _buildMembersTab(),
-                          _buildProjectsTab(),
                         ],
                       ),
                     ),
@@ -745,14 +656,11 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> with SingleTickerPr
   }
 
   Widget _buildFloatingActionButton() {
-    final currentTab = _tabController.index;
-    
     // Logs supplémentaires
-    print('DEBUG: Construction du FAB - Tab: $currentTab, CanInvite: $_canInviteTeamMember');
+    print('DEBUG: Construction du FAB - CanInvite: $_canInviteTeamMember');
     
-    // Si on est sur l'onglet des membres et l'utilisateur a la permission d'inviter
-    if (currentTab == 0 && _canInviteTeamMember) {
-      print('DEBUG: Affichage du bouton d\'invitation');
+    if (_canInviteTeamMember) {
+      // L'utilisateur peut inviter des membres
       return FloatingActionButton(
         onPressed: () {
           if (_team == null) return;
@@ -769,21 +677,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> with SingleTickerPr
       );
     }
     
-    // Si on est sur l'onglet des projets et l'utilisateur a la permission de créer un projet
-    if (currentTab == 1 && _canAddProject) {
-      return FloatingActionButton(
-        onPressed: () {
-          if (_team == null) return;
-          
-          // Afficher la boîte de dialogue pour ajouter un projet
-          _showAddProjectDialog();
-        },
-        tooltip: 'Ajouter un projet',
-        child: const Icon(Icons.add),
-      );
-    }
-    
     // Si l'utilisateur n'a pas les permissions nécessaires, ne pas afficher de FAB
-    return Container();
+    return const SizedBox.shrink();
   }
 }

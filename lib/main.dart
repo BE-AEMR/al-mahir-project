@@ -12,6 +12,8 @@ import 'package:provider/provider.dart';
 import 'providers/role_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
+import 'screens/auth/reset_password_screen.dart';
+import 'screens/auth/account_confirmation_screen.dart'; // Nouvel import
 import 'screens/projects/projects_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/auth/profile_screen.dart';
@@ -24,6 +26,7 @@ import 'screens/budget/finance_dashboard_screen.dart';
 import 'screens/finance/project_finance_dashboard_screen.dart'; // Nouvel emplacement plus approprié
 import 'screens/notifications/notifications_screen.dart';
 import 'screens/budget/categories/transaction_categories_screen.dart'; // Import pour l'écran de catégories
+import 'screens/settings/settings_screen.dart'; // Import pour l'écran des paramètres
 import 'widgets/sidebar_menu.dart';
 import 'widgets/islamic_patterns.dart';
 import 'widgets/notification_popup.dart';
@@ -83,7 +86,7 @@ Future<void> _initializeSupabase() async {
     await Supabase.initialize(
       url: supabaseUrl,
       anonKey: supabaseKey,
-      debug: true,
+      debug: false
     );
     print("Supabase initialisé avec succès!");
   } catch (e, stackTrace) {
@@ -117,6 +120,8 @@ Future<void> _handleDeepLinks() async {
 void _processLink(String link) {
   try {
     final uri = Uri.parse(link);
+    print("Traitement du lien: $link");
+    print("URI parsée: $uri");
 
     if (uri.host == 'invitation' || uri.path == '/invitation') {
       // Extraire les paramètres
@@ -135,6 +140,67 @@ void _processLink(String link) {
           },
         );
       }
+    }
+    // Gérer les liens de réinitialisation de mot de passe
+    else if (uri.host == 'reset-password' || uri.path == '/reset-password') {
+      print("==== DEEPLINK RÉINITIALISATION MOT DE PASSE DÉTECTÉ ====");
+      print("URI complète: $uri");
+      print("Paramètres reçus: ${uri.queryParameters}");
+      
+      // Récupérer le code, soit depuis le paramètre 'code' (Supabase) soit depuis 'token' (notre page web)
+      final code = uri.queryParameters['code'] ?? uri.queryParameters['token'] ?? '';
+      
+      print("Code extrait: ${code.isEmpty ? 'VIDE' : code}");
+      
+      if (code.isNotEmpty) {
+        print("Réinitialisation de mot de passe - Code: $code");
+
+        // Naviguer vers l'écran de réinitialisation de mot de passe
+        navigatorKey.currentState?.pushNamed(
+          '/reset-password',
+          arguments: {
+            'token': code, // On utilise le code comme token
+          },
+        );
+        print("Navigation vers l'écran de réinitialisation initiée avec succès");
+      } else {
+        print("ERREUR: Code manquant dans l'URL de réinitialisation - Impossible de procéder");
+      }
+      print("=======================================");
+    }
+    // Gérer les liens de confirmation de compte
+    else if (uri.host == 'account-confirmation' || uri.path == '/account-confirmation') {
+      print("==== DEEPLINK CONFIRMATION COMPTE DÉTECTÉ ====\nURI complète: $uri");
+      print("Paramètres reçus: ${uri.queryParameters}");
+
+      // Récupérer le code, soit depuis le paramètre 'code' (Supabase) soit depuis 'token' (notre page web)
+      final code = uri.queryParameters['code'] ?? uri.queryParameters['token'] ?? '';
+      final otherParams = Map<String, String>.from(uri.queryParameters);
+      otherParams.remove('code');
+      otherParams.remove('token');
+
+      print("Code extrait: ${code.isEmpty ? 'VIDE' : code}");
+      print("Autres paramètres: $otherParams");
+
+      if (code.isNotEmpty) {
+        print("Confirmation de compte - Tentative de navigation vers l'écran de confirmation");
+        try {
+          // Naviguer vers l'écran de confirmation de compte
+          navigatorKey.currentState?.pushNamed(
+            '/account-confirmation',
+            arguments: {
+              'token': code, // On utilise le code comme token
+              'uri': uri.toString(), // Passer l'URI complète pour débogage
+            },
+          );
+          print("Navigation vers l'écran de confirmation initiée avec succès");
+        } catch (e) {
+          print("ERREUR pendant la navigation: $e");
+        }
+      } else {
+        print("ERREUR: Code manquant dans l'URL de confirmation - Impossible de procéder");
+      }
+      print("=======================================");
     }
   } catch (e) {
     print("Erreur lors du traitement du lien: $e");
@@ -208,6 +274,7 @@ class MyApp extends StatelessWidget {
           '/profile': (context) => const ProfileScreen(),
           '/notifications': (context) => const NotificationsScreen(),
           '/transaction-categories': (context) => const TransactionCategoriesScreen(),
+          '/settings': (context) => const SettingsScreen(),
           '/invitation': (context) {
             // Récupérer les paramètres d'URL pour l'invitation
             final args = ModalRoute.of(context)!.settings.arguments as Map<String, String>?;
@@ -218,6 +285,26 @@ class MyApp extends StatelessWidget {
             return InvitationAcceptanceScreen(
               token: token,
               teamId: teamId,
+            );
+          },
+          '/reset-password': (context) {
+            // Récupérer le token de réinitialisation du mot de passe
+            final args = ModalRoute.of(context)!.settings.arguments as Map<String, String>?;
+            final token = args?['token'] ?? Uri.base.queryParameters['token'] ?? '';
+
+            // Rediriger vers l'écran de réinitialisation de mot de passe
+            return ResetPasswordScreen(
+              token: token,
+            );
+          },
+          '/account-confirmation': (context) {
+            // Récupérer le token de confirmation de compte
+            final args = ModalRoute.of(context)!.settings.arguments as Map<String, String>?;
+            final token = args?['token'] ?? Uri.base.queryParameters['token'] ?? '';
+
+            // Rediriger vers l'écran de confirmation de compte
+            return AccountConfirmationScreen(
+              token: token,
             );
           },
         },

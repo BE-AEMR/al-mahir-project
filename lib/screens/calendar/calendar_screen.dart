@@ -4,10 +4,14 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/project_service/project_service.dart';
 import '../../services/role_service.dart';
+import '../../services/auth_service.dart';
 import '../../models/task_model.dart';
+import '../../models/project_model.dart';
 import '../../widgets/islamic_patterns.dart';
 import '../../widgets/permission_gated.dart';
 import '../../widgets/rbac_gated_screen.dart';
+import '../tasks/task_detail_screen.dart';
+import '../tasks/task_form_screen.dart';
 
 /// Widget qui vérifie les permissions avant d'afficher le calendrier pour éviter le flash de l'écran d'accès refusé
 class CalendarScreenWrapper extends StatefulWidget {
@@ -160,6 +164,7 @@ class CalendarScreen extends StatefulWidget {
 class _CalendarScreenState extends State<CalendarScreen> {
   final ProjectService _projectService = ProjectService();
   final RoleService _roleService = RoleService();
+  final AuthService _authService = AuthService();
   
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
@@ -533,6 +538,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ),
           ],
         ),
+        floatingActionButton: _selectedDay != null
+          ? PermissionGated(
+              permissionName: 'create_task',
+              projectId: _firstAccessibleProjectId,
+              child: FloatingActionButton(
+                onPressed: () => _createTaskWithDueDate(_selectedDay!),
+                backgroundColor: const Color(0xFF1F4E5F),
+                child: const Icon(Icons.add_task),
+                tooltip: 'Créer une tâche pour cette date',
+              ),
+            )
+          : null,
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : SafeArea(
@@ -769,6 +786,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
         statusColor = Colors.grey;
     }
     
+    // Déterminer si la tâche est assignée ou non
+    final currentUserId = _authService.currentUser?.id;
+    final bool isAssigned = task.assignedTo != null;
+    final bool isAssignedToCurrentUser = task.assignedTo == currentUserId;
+    
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
       elevation: 2,
@@ -779,103 +801,163 @@ class _CalendarScreenState extends State<CalendarScreen> {
           width: 1,
         ),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: priorityColor.withOpacity(0.2),
-          child: Icon(
-            statusIcon,
-            color: statusColor,
-          ),
-        ),
-        title: Text(
-          task.title,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(
-              task.description.isNotEmpty
-                  ? task.description
-                  : 'Aucune description',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: CircleAvatar(
+              backgroundColor: priorityColor.withOpacity(0.2),
+              child: Icon(
+                statusIcon,
+                color: statusColor,
+              ),
             ),
-            const SizedBox(height: 4),
-            Row(
+            title: Text(
+              task.title,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.calendar_today,
-                  size: 14,
-                  color: Colors.grey[600],
-                ),
-                const SizedBox(width: 4),
+                const SizedBox(height: 4),
                 Text(
-                  task.dueDate != null
-                      ? DateFormat.yMMMd('fr_FR').format(task.dueDate!)
-                      : 'Pas de date limite',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  task.description.isNotEmpty
+                      ? task.description
+                      : 'Aucune description',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_today,
+                      size: 14,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      task.dueDate != null
+                          ? DateFormat.yMMMd('fr_FR').format(task.dueDate!)
+                          : 'Pas de date limite',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+                if (isAssigned)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4.0),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.person,
+                          size: 14,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          isAssignedToCurrentUser ? 'Assignée à vous' : 'Assignée',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isAssignedToCurrentUser ? Colors.blue : Colors.grey[600],
+                            fontWeight: isAssignedToCurrentUser ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
-          ],
-        ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: priorityColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: priorityColor.withOpacity(0.3),
-              width: 1,
-            ),
-          ),
-          child: Text(
-            _getPriorityText(task.priority),
-            style: TextStyle(
-              color: priorityColor,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        onTap: () async {
-          // Vérifier si l'utilisateur a la permission de voir les détails de la tâche
-          final hasReadTaskPermission = await _roleService.hasPermission(
-            'read_task',
-            projectId: task.projectId,
-          );
-          
-          if (!hasReadTaskPermission) {
-            print('=== RBAC DEBUG === [CalendarScreen] Accès refusé aux détails de la tâche: ${task.id}');
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Vous n\'avez pas la permission de voir les détails de cette tâche'),
-                  backgroundColor: Colors.red,
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: priorityColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: priorityColor.withOpacity(0.3),
+                  width: 1,
                 ),
+              ),
+              child: Text(
+                _getPriorityText(task.priority),
+                style: TextStyle(
+                  color: priorityColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            onTap: () async {
+              // Vérifier si l'utilisateur a la permission de voir les détails de la tâche
+              final hasReadTaskPermission = await _roleService.hasPermission(
+                'update_task',
+                projectId: task.projectId,
               );
-            }
-            return;
-          }
+              
+              if (!hasReadTaskPermission) {
+                print('=== RBAC DEBUG === [CalendarScreen] Accès refusé aux détails de la tâche: ${task.id}');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Vous n\'avez pas la permission de voir les détails de cette tâche'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+                return;
+              }
           
           if (mounted) {
             print('=== RBAC DEBUG === [CalendarScreen] Accès autorisé aux détails de la tâche: ${task.id}');
-            // Naviguer vers les détails de la tâche
-            Navigator.pushNamed(
+            // Naviguer vers l'écran de détail de la tâche directement
+            Navigator.push(
               context,
-              '/task_details',
-              arguments: {'taskId': task.id},
+              MaterialPageRoute(
+                builder: (context) => TaskDetailScreen(
+                  task: task,
+                  onTaskUpdated: (updatedTask) {
+                    // Recharger les tâches après une mise à jour
+                    _loadTasks();
+                  },
+                ),
+              ),
             );
           }
         },
+          ),
+          // Ajouter un bouton d'auto-assignation si la tâche n'est pas assignée
+          if (!isAssigned && currentUserId != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0, left: 16.0, right: 16.0),
+              child: PermissionGated(
+                permissionName: 'update_task',
+                projectId: task.projectId,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _selfAssignTask(task),
+                    icon: const Icon(Icons.person_add, size: 16),
+                    label: const Text('S\'assigner cette tâche'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1F4E5F),
+                      foregroundColor: Colors.white,
+                      textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -892,6 +974,279 @@ class _CalendarScreenState extends State<CalendarScreen> {
         return 'Urgente';
       default:
         return 'Inconnue';
+    }
+  }
+
+  /// Auto-assigne la tâche à l'utilisateur actuel
+  Future<void> _selfAssignTask(Task task) async {
+    // Vérifier si l'utilisateur a la permission de mettre à jour cette tâche
+    final hasUpdatePermission = await _roleService.hasPermission(
+      'update_task',
+      projectId: task.projectId,
+    );
+    
+    if (!hasUpdatePermission) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vous n\'avez pas la permission de vous assigner cette tâche'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+    
+    final currentUserId = _authService.currentUser?.id;
+    if (currentUserId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vous devez être connecté pour vous assigner une tâche'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+    
+    // Mettre à jour la tâche pour l'assigner à l'utilisateur actuel
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+      
+      // Créer une copie de la tâche avec l'utilisateur assigné
+      final updatedTask = task.copyWith(
+        assignedTo: currentUserId,
+        updatedAt: DateTime.now(),
+      );
+      
+      // Mettre à jour la tâche dans la base de données
+      await _projectService.updateTask(updatedTask);
+      
+      // Recharger les tâches pour afficher les changements
+      await _loadTasks();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tâche assignée avec succès'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Erreur lors de l\'auto-assignation de la tâche: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de l\'assignation: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  /// Affiche un sélecteur de projet avec une animation de style macOS
+  Future<String?> _showProjectSelector() async {
+    // Récupérer les projets accessibles à l'utilisateur
+    setState(() {
+      _isLoading = true;
+    });
+    
+    List<Project> accessibleProjects = [];
+    try {
+      accessibleProjects = await _projectService.getAccessibleProjects();
+      setState(() {
+        _isLoading = false;
+      });
+      
+      if (accessibleProjects.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Aucun projet accessible pour créer une tâche'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return null;
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de la récupération des projets: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return null;
+    }
+    
+    // Afficher la boîte de dialogue avec animation de style macOS
+    if (!mounted) return null;
+    
+    String? selectedProjectId;
+    await showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Sélectionneur de projet',
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) => Container(),
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curvedAnimation = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeInOut,
+        );
+        
+        return ScaleTransition(
+          scale: Tween<double>(begin: 0.8, end: 1.0).animate(curvedAnimation),
+          child: FadeTransition(
+            opacity: Tween<double>(begin: 0.0, end: 1.0).animate(curvedAnimation),
+            child: AlertDialog(
+              title: Row(
+                children: [
+                  const Icon(Icons.folder_special, color: Color(0xFF1F4E5F)),
+                  const SizedBox(width: 10),
+                  const Text('Sélectionner un projet'),
+                ],
+              ),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.8,
+                height: MediaQuery.of(context).size.height * 0.5,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Veuillez sélectionner le projet pour lequel vous souhaitez créer une nouvelle tâche',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                    const SizedBox(height: 15),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: accessibleProjects.length,
+                        itemBuilder: (context, index) {
+                          final project = accessibleProjects[index];
+                          return Card(
+                            elevation: 2,
+                            margin: const EdgeInsets.symmetric(vertical: 5),
+                            child: ListTile(
+                              leading: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1F4E5F).withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.folder,
+                                  color: Color(0xFF1F4E5F),
+                                ),
+                              ),
+                              title: Text(
+                                project.name,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Text(
+                                project.description.isEmpty ? 'Aucune description' : project.description,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onTap: () {
+                                selectedProjectId = project.id;
+                                Navigator.of(context).pop();
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  child: const Text('Annuler'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: Colors.white,
+              elevation: 8,
+            ),
+          ),
+        );
+      },
+    );
+    
+    return selectedProjectId;
+  }
+
+  /// Ouvre le formulaire de création de tâche avec la date d'échéance préremplie
+  Future<void> _createTaskWithDueDate(DateTime dueDate) async {
+    // Vérifier si l'utilisateur a la permission de créer une tâche
+    final hasCreateTaskPermission = await _roleService.hasPermission(
+      'create_task',
+    );
+    
+    if (!hasCreateTaskPermission) {
+      print('=== RBAC DEBUG === [CalendarScreen] Accès refusé à la création de tâche');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vous n\'avez pas la permission de créer une tâche'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+    
+    // Afficher le sélecteur de projet
+    final selectedProjectId = await _showProjectSelector();
+    
+    // Si aucun projet n'est sélectionné, annuler la création de tâche
+    if (selectedProjectId == null) {
+      return;
+    }
+    
+    // Naviguer vers le formulaire de tâche avec la date d'échéance préremplie
+    if (mounted) {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TaskFormScreen(
+            projectId: selectedProjectId,
+            task: null, // Nouvelle tâche
+            phaseId: null, // Pas de phase sélectionnée par défaut
+          ),
+          settings: RouteSettings(
+            arguments: {
+              'dueDate': dueDate, // Passer la date sélectionnée comme argument
+            },
+          ),
+        ),
+      );
+      
+      // Si une tâche a été créée, recharger les tâches
+      if (result == true) {
+        _loadTasks();
+      }
     }
   }
 }

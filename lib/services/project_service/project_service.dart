@@ -1022,6 +1022,78 @@ class ProjectService {
     }
   }
   
+  /// Vérifie si un utilisateur est membre d'un projet
+  Future<bool> isUserProjectMember(String projectId, String? userId) async {
+    if (userId == null) return false;
+    
+    try {
+      // Vérifier si l'utilisateur est le créateur du projet
+      final project = await getProjectById(projectId);
+      if (project.createdBy == userId) return true;
+      
+      // Récupérer les équipes associées au projet
+      final teamProjectsResponse = await _client
+          .from('team_projects')
+          .select('team_id')
+          .eq('project_id', projectId);
+      
+      final teamIds = teamProjectsResponse
+          .map<String>((json) => json['team_id'] as String)
+          .toList();
+      
+      if (teamIds.isEmpty) return false;
+      
+      // Vérifier si l'utilisateur est membre d'une des équipes du projet
+      for (final teamId in teamIds) {
+        final memberResponse = await _client
+            .from('team_members')
+            .select()
+            .eq('team_id', teamId)
+            .eq('user_id', userId)
+            .eq('status', 'active')
+            .limit(1);
+        
+        if (memberResponse.isNotEmpty) return true;
+      }
+      
+      // Vérifier si l'utilisateur a un rôle associé à ce projet
+      final userRolesResponse = await _client
+          .from('user_roles')
+          .select()
+          .eq('user_id', userId)
+          .eq('project_id', projectId)
+          .limit(1);
+      
+      if (userRolesResponse.isNotEmpty) return true;
+      
+      // Vérifier via user_role_projects
+      final userRoleIdsResponse = await _client
+          .from('user_roles')
+          .select('id')
+          .eq('user_id', userId);
+      
+      final userRoleIds = userRoleIdsResponse
+          .map<String>((json) => json['id'] as String)
+          .toList();
+      
+      for (final roleId in userRoleIds) {
+        final roleProjectsResponse = await _client
+            .from('user_role_projects')
+            .select()
+            .eq('user_role_id', roleId)
+            .eq('project_id', projectId)
+            .limit(1);
+        
+        if (roleProjectsResponse.isNotEmpty) return true;
+      }
+      
+      return false;
+    } catch (e) {
+      print('Erreur lors de la vérification si l\'utilisateur est membre du projet: $e');
+      return false;
+    }
+  }
+  
   // Récupérer les membres d'un projet
   Future<List<String>> getProjectTeamMembers(String projectId) async {
     try {
