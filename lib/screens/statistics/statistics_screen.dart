@@ -44,7 +44,7 @@ class _StatisticsScreenWrapperState extends State<StatisticsScreenWrapper> {
     try {
       // Vérifier si l'utilisateur a la permission globale read_all_projects
       final hasAllProjectsAccess = await _roleService.hasPermission('read_all_projects');
-
+      
       if (hasAllProjectsAccess) {
         print('=== RBAC DEBUG === [StatisticsScreenWrapper] Utilisateur avec permission read_all_projects, accès autorisé');
         setState(() {
@@ -53,7 +53,7 @@ class _StatisticsScreenWrapperState extends State<StatisticsScreenWrapper> {
         });
         return;
       }
-
+      
       // Récupérer les projets accessibles
       final projects = await _projectService.getAccessibleProjects();
       if (projects.isNotEmpty) {
@@ -91,7 +91,7 @@ class _StatisticsScreenWrapperState extends State<StatisticsScreenWrapper> {
         ),
       );
     }
-
+    
     if (!_hasPermission) {
       // Afficher directement l'écran d'accès refusé
       return Scaffold(
@@ -123,7 +123,7 @@ class _StatisticsScreenWrapperState extends State<StatisticsScreenWrapper> {
         ),
       );
     }
-
+    
     // Si l'utilisateur a la permission, afficher les statistiques
     return StatisticsScreen(projectId: _projectId);
   }
@@ -131,7 +131,7 @@ class _StatisticsScreenWrapperState extends State<StatisticsScreenWrapper> {
 
 class StatisticsScreen extends StatefulWidget {
   final String? projectId;
-
+  
   const StatisticsScreen({
     Key? key,
     this.projectId,
@@ -145,10 +145,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
   bool _isLoading = true;
   late TabController _tabController;
   final RoleService _roleService = RoleService();
-
+  
   // Animation pour les transitions d'onglets
   final _pageTransitionDuration = const Duration(milliseconds: 300);
-
+  
   // Statistiques générales
   int _totalProjects = 0;
   int _totalTasks = 0;
@@ -158,7 +158,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
   int _pendingTasks = 0;
   int _totalPhases = 0;
   double _completionRate = 0.0;
-
+  
   // Données pour les graphiques et visualisations
   List<StatCardData> _statCards = [];
   List<TaskActivityData> _activityData = [];
@@ -171,48 +171,48 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
   List<ChartData> _statusData = [];
   List<ChartData> _priorityData = [];
   List<TaskTimelineData> _timelineData = [];
-
+  
   // Période d'analyse
   String _selectedPeriod = 'Mois';
   final List<String> _periods = ['Semaine', 'Mois', 'Trimestre', 'Année'];
-
+  
   // Animation controllers
   bool _showProjectDetails = false;
   String? _selectedProjectId;
-
+  
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _loadData();
-
+    
     // Tracer les informations sur l'utilisateur au démarrage de l'écran
     _logUserAccessInfo();
   }
-
+  
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
   }
-
+  
   Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
     });
-
+    
     try {
       print('=== RBAC DEBUG === [StatisticsScreen] Chargement des données avec filtrage RBAC');
       final projectService = ProjectService();
-
+      
       // Récupérer uniquement les projets accessibles selon les permissions RBAC
       final projects = await projectService.getAccessibleProjects();
       print('=== RBAC DEBUG === [StatisticsScreen] ${projects.length} projets accessibles récupérés');
-
+      
       // Extraire les IDs des projets accessibles pour filtrer les tâches
       final projectIds = projects.map((p) => p.id).toList();
       print('=== RBAC DEBUG === [StatisticsScreen] IDs des projets accessibles: ${projectIds.join(", ")}');
-
+      
       // Si aucun projet accessible, retourner des statistiques vides
       if (projectIds.isEmpty) {
         print('=== RBAC DEBUG === [StatisticsScreen] Aucun projet accessible, affichage de statistiques vides');
@@ -234,7 +234,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
         });
         return;
       }
-
+      
       // Récupérer uniquement les tâches des projets accessibles
       List<Task> tasks = [];
       if (projectIds.length == 1) {
@@ -242,15 +242,15 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
       } else {
         tasks = await projectService.getTasksForProjects(projectIds);
       }
-
+      
       // Récupérer les phases des projets accessibles
       final phases = await projectService.getAllPhases();
       final accessiblePhases = phases.where((phase) => projectIds.contains(phase.projectId)).toList();
-
+      
       _totalProjects = projects.length;
       _totalTasks = tasks.length;
       _totalPhases = accessiblePhases.length;
-
+      
       // Compter les tâches par statut
       _tasksByStatus = {};
       for (final task in tasks) {
@@ -258,18 +258,18 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
         print('Statut trouvé: "$status"'); // Debug pour voir les statuts bruts
         _tasksByStatus[status] = (_tasksByStatus[status] ?? 0) + 1;
       }
-
+      
       // Afficher tous les statuts trouvés pour débogage
       print('Tous les statuts trouvés: ${_tasksByStatus.keys.toList()}');
-
+      
       _completedTasks = 0;
       _inProgressTasks = 0;
       _blockedTasks = 0;
       _pendingTasks = 0;
-
+      
       for (final task in tasks) {
         final status = task.status;
-
+        
         if (status.toLowerCase() == 'completed') {
           _completedTasks++;
         } else if (status == 'inProgress' || status == 'in_progress') {
@@ -280,23 +280,23 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
           _pendingTasks++;
         }
       }
-
+      
       // Calculer le taux de complétion
       _completionRate = _totalTasks > 0 ? (_completedTasks / _totalTasks) * 100 : 0;
-
+      
       // Compter les tâches par priorité
       _tasksByPriority = {};
       for (final task in tasks) {
         final priority = _getPriorityText(task.priority);
         _tasksByPriority[priority] = (_tasksByPriority[priority] ?? 0) + 1;
       }
-
+      
       // Compter les tâches par projet
       _tasksByProject = {};
       for (final task in tasks) {
         final projectId = task.projectId;
         final project = projects.firstWhere(
-              (p) => p.id == projectId,
+          (p) => p.id == projectId,
           orElse: () => Project(
             id: projectId,
             name: 'Projet inconnu',
@@ -307,11 +307,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
             status: 'unknown',
           ),
         );
-
+        
         final projectName = project.name;
         _tasksByProject[projectName] = (_tasksByProject[projectName] ?? [])..add(task);
       }
-
+      
       // Compter les tâches par date d'échéance
       _tasksByDueDate = {};
       for (final task in tasks) {
@@ -321,21 +321,21 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
             task.dueDate!.month,
             task.dueDate!.day,
           );
-
+          
           _tasksByDueDate[dueDate] = (_tasksByDueDate[dueDate] ?? [])..add(task);
         }
       }
-
+      
       // Pour chaque projet, créer des données de progression
       _projectProgressData = [];
       _projectPhaseData = [];
-
+      
       for (var project in projects) {
         final projectTasks = tasks.where((task) => task.projectId == project.id).toList();
         final completedTasks = projectTasks.where((task) => task.status == 'completed').length;
         final inProgressTasks = projectTasks.where((task) => task.status == 'inProgress' || task.status == 'in_progress').length;
         final pendingTasks = projectTasks.where((task) => task.status == 'pending').length;
-
+        
         _projectProgressData.add(
           ProjectProgressData(
             projectName: project.name,
@@ -345,11 +345,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
             totalTasks: projectTasks.length,
           ),
         );
-
-        // Compter les phases par projet (seulement les phases principales, sans parent)
-        final projectPhases = accessiblePhases.where((phase) =>
-        phase.projectId == project.id && phase.parentPhaseId == null
-        ).toList();
+        
+        // Compter les phases par projet
+        final projectPhases = accessiblePhases.where((phase) => phase.projectId == project.id).toList();
         _projectPhaseData.add(
           ProjectPhaseData(
             projectName: project.name,
@@ -358,10 +356,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
           ),
         );
       }
-
+      
       // Préparer les cartes de statistiques
       _statCards = _createStatCards();
-
+      
       // Préparer les données pour le graphique circulaire
       _statusData = [];
       final statusColors = {
@@ -371,7 +369,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
         'review': Colors.orange,
         'completed': Colors.green,
       };
-
+      
       final statusLabels = {
         'todo': 'À faire',
         'inprogress': 'En cours',
@@ -379,7 +377,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
         'review': 'En révision',
         'completed': 'Terminée',
       };
-
+      
       // Nettoyer les entrées de statut vides ou non reconnues
       Map<String, int> cleanedStatusMap = {};
       _tasksByStatus.forEach((status, count) {
@@ -388,12 +386,12 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
         if (cleanStatus.isEmpty) {
           return;
         }
-
+        
         // Normaliser le statut "En cours" qui peut apparaître sous deux formats
         if (cleanStatus == 'in_progress') {
           cleanStatus = 'inProgress'; // Standardiser sur 'inProgress'
         }
-
+        
         // Vérifier si c'est un statut reconnu
         if (statusLabels.containsKey(cleanStatus)) {
           cleanedStatusMap[cleanStatus] = (cleanedStatusMap[cleanStatus] ?? 0) + count;
@@ -401,12 +399,12 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
           print('Statut non reconnu ignoré: "$status"');
         }
       });
-
+      
       // Utiliser uniquement les statuts nettoyés
       cleanedStatusMap.forEach((status, count) {
         final color = statusColors[status] ?? Colors.grey;
         final label = statusLabels[status] ?? 'Autre';
-
+        
         _statusData.add(ChartData(
           label,
           count.toDouble(),
@@ -414,10 +412,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
           text: count.toString(),
         ));
       });
-
+      
       // Trier par ordre décroissant pour mettre les segments les plus grands en premier
       _statusData.sort((a, b) => b.y.compareTo(a.y));
-
+      
     } catch (e) {
       print('Erreur lors du chargement des données: $e');
     } finally {
@@ -426,7 +424,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
       });
     }
   }
-
+  
   // Génère les cartes de statistiques basées sur les données chargées
   List<StatCardData> _createStatCards() {
     return [
@@ -460,7 +458,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
       ),
     ];
   }
-
+  
   @override
   Widget build(BuildContext context) {
     // Afficher directement le contenu sans RbacGatedScreen
@@ -499,13 +497,13 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : TabBarView(
-        controller: _tabController,
-        children: [
-          _buildOverviewTab(),
-          _buildProjectsTab(),
-          _buildActivityTab(),
-        ],
-      ),
+              controller: _tabController,
+              children: [
+                _buildOverviewTab(),
+                _buildProjectsTab(),
+                _buildActivityTab(),
+              ],
+            ),
     );
   }
 
@@ -567,18 +565,18 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                 ),
               ],
             ),
-
+            
             const SizedBox(height: 24),
-
+            
             // Graphiques
             _buildInteractiveStatusChart(),
-
+            
             const SizedBox(height: 24),
-
+            
             _buildEnhancedPriorityChart(),
-
+            
             const SizedBox(height: 24),
-
+            
             _buildEnhancedTimelineChart(),
           ],
         ),
@@ -704,14 +702,14 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                 ),
               ],
             ),
-
+            
             const SizedBox(height: 24),
-
+            
             // Graphiques
             _buildProjectProgressChart(),
-
+            
             const SizedBox(height: 24),
-
+            
             _buildProjectPhasesChart(),
           ],
         ),
@@ -777,14 +775,14 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                 ),
               ],
             ),
-
+            
             const SizedBox(height: 24),
-
+            
             // Graphiques
             _buildEnhancedTimelineChart(),
-
+            
             const SizedBox(height: 24),
-
+            
             _buildCompletionTrendsChart(),
           ],
         ),
@@ -823,11 +821,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
               dataSource: _projectPhaseData,
               xValueMapper: (ProjectPhaseData data, _) => data.projectName,
               yValueMapper: (ProjectPhaseData data, _) => data.totalPhases,
-              pointColorMapper: (ProjectPhaseData data, _) =>
+              pointColorMapper: (ProjectPhaseData data, _) => 
                   Color.fromRGBO(
-                      (data.projectName.hashCode * 40) % 255,
-                      (data.projectName.hashCode * 70) % 255,
-                      (data.projectName.hashCode * 90) % 255,
+                      (data.projectName.hashCode * 40) % 255, 
+                      (data.projectName.hashCode * 70) % 255, 
+                      (data.projectName.hashCode * 90) % 255, 
                       1),
               dataLabelMapper: (ProjectPhaseData data, _) => '${data.totalPhases}',
               dataLabelSettings: const DataLabelSettings(
@@ -857,7 +855,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
       {'jour': 'Sam', 'ajoutées': 1, 'complétées': 2},
       {'jour': 'Dim', 'ajoutées': 0, 'complétées': 1},
     ];
-
+    
     return Container(
       height: 350,
       decoration: BoxDecoration(
@@ -904,16 +902,16 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
     if (_tasksByProject.isEmpty) {
       return _buildEmptyChart('Aucun projet avec des tâches');
     }
-
+    
     // Limiter à 5 projets maximum pour la lisibilité
     final Map<String, int> topProjects = {};
     final sortedProjects = _tasksByProject.entries.toList()
       ..sort((a, b) => b.value.length.compareTo(a.value.length));
-
+    
     for (int i = 0; i < sortedProjects.length && i < 5; i++) {
       topProjects[sortedProjects[i].key] = sortedProjects[i].value.length;
     }
-
+    
     return Column(
       children: [
         SizedBox(
@@ -940,8 +938,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                     dataLabelSettings: const DataLabelSettings(
                       isVisible: true,
                     ),
-                    pointColorMapper: (entry, index) =>
-                    Colors.primaries[index % Colors.primaries.length],
+                    pointColorMapper: (entry, index) => 
+                        Colors.primaries[index % Colors.primaries.length],
                     onPointTap: (ChartPointDetails details) {
                       // Afficher détails du projet
                       final projectName = topProjects.keys.elementAt(details.pointIndex!);
@@ -956,7 +954,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
             ),
           ),
         ),
-
+        
         if (_showProjectDetails && _selectedProjectId != null) ...[
           const SizedBox(height: 16),
           Card(
@@ -1086,16 +1084,16 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
     if (_totalTasks == 0) {
       return _buildEmptyChart('Aucune tâche disponible');
     }
-
+    
     final List<ChartData> chartData = [];
-
+    
     final priorityColors = {
       'Faible': Colors.green,
       'Normale': Colors.blue,
       'Élevée': Colors.orange,
       'Urgente': Colors.red,
     };
-
+    
     _tasksByPriority.forEach((priority, count) {
       final color = priorityColors[priority] ?? Colors.grey;
       chartData.add(ChartData(
@@ -1105,7 +1103,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
         text: '$count',
       ));
     });
-
+    
     return Container(
       height: 350,
       decoration: BoxDecoration(
@@ -1161,26 +1159,26 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
     if (_tasksByDueDate.isEmpty) {
       return _buildEmptyChart('Aucune tâche avec date d\'échéance');
     }
-
+    
     // Trier les dates et limiter aux 30 prochains jours
     final now = DateTime.now();
     final thirtyDaysLater = now.add(const Duration(days: 30));
-
+    
     final Map<DateTime, int> filteredDates = {};
     _tasksByDueDate.forEach((date, tasks) {
       if (date.isAfter(now) && date.isBefore(thirtyDaysLater)) {
         filteredDates[date] = tasks.length;
       }
     });
-
+    
     if (filteredDates.isEmpty) {
       return _buildEmptyChart('Aucune tâche dans les 30 prochains jours');
     }
-
+    
     // Créer les données pour le graphique
     final List<TaskTimelineData> timelineData = [];
     final sortedDates = filteredDates.keys.toList()..sort();
-
+    
     for (int i = 0; i < sortedDates.length; i++) {
       final date = sortedDates[i];
       timelineData.add(TaskTimelineData(
@@ -1188,7 +1186,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
         count: filteredDates[date]!,
       ));
     }
-
+    
     return Container(
       height: 350,
       decoration: BoxDecoration(
@@ -1223,8 +1221,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
               dataSource: timelineData,
               xValueMapper: (TaskTimelineData data, _) => data.date,
               yValueMapper: (TaskTimelineData data, _) => data.count,
-              pointColorMapper: (TaskTimelineData data, _) =>
-              data.isOverdue ? Colors.redAccent : const Color(0xFF1F4E5F),
+              pointColorMapper: (TaskTimelineData data, _) => 
+                data.isOverdue ? Colors.redAccent : const Color(0xFF1F4E5F),
               dataLabelMapper: (TaskTimelineData data, _) => '${data.count}',
               dataLabelSettings: const DataLabelSettings(
                 isVisible: true,
@@ -1297,28 +1295,28 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
         print('ERREUR: StatisticsScreen - Aucun utilisateur connecté');
         return;
       }
-
+      
       print('\n===== INFORMATIONS D\'ACCÈS UTILISATEUR (StatisticsScreen) =====');
       print('ID utilisateur: ${user.id}');
       print('Email: ${user.email}');
-
+      
       // Récupérer le profil utilisateur
       final profileResponse = await Supabase.instance.client
           .from('profiles')
           .select()
           .eq('id', user.id)
           .single();
-
+      
       if (profileResponse != null) {
         print('Nom: ${profileResponse['first_name']} ${profileResponse['last_name']}');
       }
-
+      
       // Récupérer les rôles de l'utilisateur
       final userRolesResponse = await Supabase.instance.client
           .from('user_roles')
           .select('role_id, roles (name, description), team_id, project_id')
           .eq('user_id', user.id);
-
+      
       print('\nRôles attribués:');
       if (userRolesResponse != null && userRolesResponse.isNotEmpty) {
         for (var roleData in userRolesResponse) {
@@ -1326,17 +1324,17 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
           final roleDesc = roleData['roles']['description'];
           final teamId = roleData['team_id'];
           final projectId = roleData['project_id'];
-
+          
           print('- Rôle: $roleName ($roleDesc)');
           if (teamId != null) print('  → Équipe: $teamId');
           if (projectId != null) print('  → Projet: $projectId');
-
+          
           // Récupérer toutes les permissions pour ce rôle
           final rolePermissions = await Supabase.instance.client
               .from('role_permissions')
               .select('permissions (name, description)')
               .eq('role_id', roleData['role_id']);
-
+          
           if (rolePermissions != null && rolePermissions.isNotEmpty) {
             print('  Permissions:');
             for (var permData in rolePermissions) {
@@ -1349,11 +1347,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
       } else {
         print('Aucun rôle attribué à cet utilisateur.');
       }
-
+      
       // Vérifier spécifiquement la permission pour l'écran des statistiques
       final hasStatisticsAccess = await _roleService.hasPermission('read_all_projects');
       print('\nPermission "read_all_projects" (accès statistiques): ${hasStatisticsAccess ? 'ACCORDÉE' : 'REFUSÉE'}');
-
+      
       print('============================================================\n');
     } catch (e) {
       print('ERREUR lors de la récupération des informations d\'accès: $e');
@@ -1417,7 +1415,7 @@ class ProjectProgressData {
   final int inProgressTasks;
   final int pendingTasks;
   final int totalTasks;
-
+  
   ProjectProgressData({
     required this.projectName,
     required this.completedTasks,
@@ -1431,7 +1429,7 @@ class ProjectPhaseData {
   final String projectName;
   final int totalPhases;
   final int completedPhases;
-
+  
   ProjectPhaseData({
     required this.projectName,
     required this.totalPhases,

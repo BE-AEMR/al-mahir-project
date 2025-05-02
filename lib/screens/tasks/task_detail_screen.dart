@@ -52,7 +52,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   final TaskCommentService _commentService = TaskCommentService();
   final RoleService _roleService = RoleService();
   final AuthService _authService = AuthService();
-
+  
   late Task _task;
   bool _isLoading = false;
   String? _errorMessage;
@@ -88,10 +88,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     try {
       // Récupérer les rôles de l'utilisateur avec les projets associés
       final userRolesDetails = await _roleService.getUserRolesDetails();
-
+      
       // Vérifier si l'utilisateur a un rôle system_admin (accès global)
       final isSystemAdmin = userRolesDetails.any((role) => role['role_name'] == 'system_admin');
-
+      
       // Si l'utilisateur est admin système, il a un accès complet
       if (isSystemAdmin) {
         print('DEBUG: Utilisateur system_admin, accès à la tâche accordé');
@@ -101,13 +101,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         await _loadAllTaskData();
         return;
       }
-
+      
       // Vérifier si l'utilisateur a une permission directe sur cette tâche dans le contexte du projet
       final hasTaskPermission = await _roleService.hasPermission(
-          'read_task',
-          projectId: _task.projectId
+        'read_task',
+        projectId: _task.projectId
       );
-
+      
       if (hasTaskPermission) {
         print('DEBUG: Utilisateur a une permission directe sur cette tâche');
         setState(() {
@@ -116,12 +116,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         await _loadAllTaskData();
         return;
       }
-
+      
       // Vérifier si l'utilisateur a un rôle associé à ce projet spécifique
-      final hasProjectRole = userRolesDetails.any((role) =>
-      role['project_id'] == _task.projectId
+      final hasProjectRole = userRolesDetails.any((role) => 
+        role['project_id'] == _task.projectId
       );
-
+      
       if (hasProjectRole) {
         print('DEBUG: Utilisateur a un rôle associé au projet de cette tâche');
         setState(() {
@@ -130,7 +130,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         await _loadAllTaskData();
         return;
       }
-
+      
       // Vérifier si l'utilisateur est assigné à cette tâche
       final currentUser = _authService.currentUser;
       if (currentUser != null && _task.assignedTo == currentUser.id) {
@@ -141,13 +141,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         await _loadAllTaskData();
         return;
       }
-
+      
       // Aucun accès trouvé
       setState(() {
         _hasTaskAccess = false;
         _isLoading = false;
       });
-
+      
     } catch (e) {
       print('ERROR: Erreur lors de la vérification de l\'accès à la tâche: $e');
       setState(() {
@@ -170,12 +170,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         _loadTaskBudget(),
         _loadComments()
       ]);
-
+      
       // Une fois toutes les données chargées, mettre à jour l'état
       setState(() {
         _isLoading = false;
       });
-
+      
       print('DEBUG: Toutes les données de la tâche chargées avec succès');
     } catch (e) {
       print('ERROR: Erreur lors du chargement des données de la tâche: $e');
@@ -207,7 +207,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       if (_task.assignedTo != null) {
         userIds.add(_task.assignedTo!);
       }
-
+      
       final displayNames = await _userService.getUsersDisplayNames(userIds.toList());
       setState(() {
         _userDisplayNames = displayNames;
@@ -224,7 +224,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         _taskHistory = history;
         _loadingHistory = false;
       });
-
+      
       // Charger les noms des utilisateurs qui ont fait les modifications
       if (history.isNotEmpty) {
         final userIds = history.map((h) => h.userId).toSet().toList();
@@ -278,7 +278,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         _comments = comments;
         _loadingComments = false;
       });
-
+      
       // Charger les noms des utilisateurs qui ont fait les commentaires
       if (comments.isNotEmpty) {
         final userIds = comments.map((c) => c.userId).toSet().toList();
@@ -313,18 +313,18 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     setState(() {
       _isLoading = true;
     });
-
+    
     try {
       final updatedTask = await _projectService.updateTaskStatus(_task.id, status);
-
+      
       setState(() {
         _task = updatedTask;
         _isLoading = false;
       });
-
+      
       // Rafraîchir l'historique
       await _loadTaskHistory();
-
+      
       if (widget.onTaskUpdated != null) {
         widget.onTaskUpdated!(_task);
       }
@@ -372,84 +372,66 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         title: _task.title,
         showLogo: false,
         actions: [
-          FutureBuilder<bool>(
-            future: _roleService.hasPermission('update_task', projectId: _task.projectId),
-            builder: (context, updateSnapshot) {
-              // Afficher un indicateur de chargement pendant la vérification
-              if (updateSnapshot.connectionState == ConnectionState.waiting) {
-                return const SizedBox(width: 48, child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))));
-              }
-
-              // Si pas de permission update_task, ne rien afficher
-              final hasUpdatePermission = updateSnapshot.data ?? false;
-              if (!hasUpdatePermission) {
-                return const SizedBox.shrink();
-              }
-
-              // Vérifier la permission de suppression
-              return FutureBuilder<bool>(
-                future: _roleService.hasPermission('delete_task', projectId: _task.projectId),
-                builder: (context, deleteSnapshot) {
-                  final hasDeletePermission = deleteSnapshot.data ?? false;
-
-                  return PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      if (value == 'edit') {
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => TaskFormScreen(
-                              projectId: _task.projectId,
-                              task: _task,
-                            ),
-                          ),
-                        );
-                        if (result == true) {
-                          await _refreshTaskDetails();
-                        }
-                      } else if (value == 'delete') {
-                        _showDeleteConfirmationDialog();
-                      }
-                    },
-                    itemBuilder: (context) {
-                      final items = <PopupMenuEntry<String>>[];
-
-                      // Option d'édition (utilisateur a déjà la permission puisque nous sommes ici)
-                      items.add(
-                        const PopupMenuItem(
-                          value: 'edit',
-                          child: Row(
-                            children: [
-                              Icon(Icons.edit),
-                              SizedBox(width: 8),
-                              Text('Modifier'),
-                            ],
-                          ),
-                        ),
-                      );
-
-                      // Option de suppression (si la permission est accordée)
-                      if (hasDeletePermission) {
-                        items.add(
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Row(
-                              children: [
-                                Icon(Icons.delete, color: Colors.red),
-                                SizedBox(width: 8),
-                                Text('Supprimer', style: TextStyle(color: Colors.red)),
-                              ],
-                            ),
-                          ),
-                        );
-                      }
-
-                      return items;
-                    },
+          PermissionGated(
+            permissionName: 'update_task',
+            projectId: _task.projectId,
+            child: PopupMenuButton<String>(
+              onSelected: (value) async {
+                if (value == 'edit') {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TaskFormScreen(
+                        projectId: _task.projectId,
+                        task: _task,
+                      ),
+                    ),
                   );
-                },
-              );
-            },
+                  if (result == true) {
+                    await _refreshTaskDetails();
+                  }
+                } else if (value == 'delete') {
+                  _showDeleteConfirmationDialog();
+                }
+              },
+              itemBuilder: (context) {
+                final items = <PopupMenuEntry<String>>[];
+                
+                // Toujours ajouter l'option d'édition si l'utilisateur a la permission update_task
+                items.add(
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit),
+                        SizedBox(width: 8),
+                        Text('Modifier'),
+                      ],
+                    ),
+                  ),
+                );
+                
+                // Vérifier si l'utilisateur a la permission delete_task avant d'ajouter l'option supprimer
+                _roleService.hasPermission('delete_task', projectId: _task.projectId).then((hasPermission) {
+                  if (hasPermission) {
+                    items.add(
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete, color: Colors.red),
+                            SizedBox(width: 8),
+                            Text('Supprimer', style: TextStyle(color: Colors.red)),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+                });
+                
+                return items;
+              },
+            ),
           ),
         ],
       ),
@@ -459,7 +441,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   Widget _buildBody() {
     final TaskStatus status = TaskStatus.values.firstWhere(
-          (s) => s.name == _task.status,
+      (s) => s.name == _task.status,
       orElse: () => TaskStatus.todo,
     );
 
@@ -542,11 +524,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   const SizedBox(height: 16),
                   const Divider(),
                   const SizedBox(height: 8),
-
+                  
                   // Affichage de l'assignation individuelle si elle existe
                   if (_task.assignedTo != null)
                     _buildInfoRow('Assignée à', _userDisplayNames[_task.assignedTo!] ?? _task.assignedTo!),
-
+                  
                   // Affichage des équipes assignées
                   if (_loadingTeams)
                     const Center(
@@ -561,11 +543,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     )
                   else if (_assignedTeams.isNotEmpty) ...[
                     _buildInfoRow(
-                        _assignedTeams.length > 1 ? 'Équipes assignées' : 'Équipe assignée',
-                        _assignedTeams.map((team) => team.name).join(', ')
+                      _assignedTeams.length > 1 ? 'Équipes assignées' : 'Équipe assignée',
+                      _assignedTeams.map((team) => team.name).join(', ')
                     ),
                   ],
-
+                  
                   if (_task.dueDate != null)
                     _buildInfoRow(
                       'Date d\'échéance',
@@ -630,7 +612,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                         // Calculer l'étape active
                         final activeIndex = TaskStatus.values.indexWhere((s) => s.name == _task.status);
                         final maxWidth = constraints.maxWidth;
-
+                        
                         return Column(
                           children: [
                             // Ligne de progression avec indicateurs
@@ -678,7 +660,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                                       final status = entry.value;
                                       final isActive = index <= activeIndex;
                                       final isCurrent = index == activeIndex;
-
+                                      
                                       return InkWell(
                                         onTap: () => _updateTaskStatus(status.name),
                                         borderRadius: BorderRadius.circular(18),
@@ -703,21 +685,21 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                                           child: Center(
                                             child: AnimatedSwitcher(
                                               duration: const Duration(milliseconds: 300),
-                                              child: isActive
-                                                  ? Icon(
-                                                isCurrent ? Icons.done_all : Icons.done,
-                                                color: Colors.white,
-                                                size: 18,
-                                                key: ValueKey('active_$index'),
-                                              )
-                                                  : Text(
-                                                '${index + 1}',
-                                                style: TextStyle(
-                                                  color: Colors.grey.shade600,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                                key: ValueKey('inactive_$index'),
-                                              ),
+                                              child: isActive 
+                                                ? Icon(
+                                                    isCurrent ? Icons.done_all : Icons.done,
+                                                    color: Colors.white,
+                                                    size: 18,
+                                                    key: ValueKey('active_$index'),
+                                                  )
+                                                : Text(
+                                                    '${index + 1}',
+                                                    style: TextStyle(
+                                                      color: Colors.grey.shade600,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                    key: ValueKey('inactive_$index'),
+                                                  ),
                                             ),
                                           ),
                                         ),
@@ -735,16 +717,16 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                                 final index = entry.key;
                                 final status = entry.value;
                                 final isActive = index <= activeIndex;
-
+                                
                                 return Expanded(
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 2.0),
                                     child: Text(
                                       status.displayName,
-                                      textAlign: index == 0
-                                          ? TextAlign.left
-                                          : (index == TaskStatus.values.length - 1
-                                          ? TextAlign.right
+                                      textAlign: index == 0 
+                                        ? TextAlign.left 
+                                        : (index == TaskStatus.values.length - 1 
+                                          ? TextAlign.right 
                                           : TextAlign.center),
                                       style: TextStyle(
                                         fontSize: 12,
@@ -781,16 +763,16 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
                               color: TaskStatus.values
-                                  .firstWhere((s) => s.name == _task.status)
-                                  .color
-                                  .withOpacity(0.1),
+                                .firstWhere((s) => s.name == _task.status)
+                                .color
+                                .withOpacity(0.1),
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
                               _getStatusIcon(_task.status),
                               color: TaskStatus.values
-                                  .firstWhere((s) => s.name == _task.status)
-                                  .color,
+                                .firstWhere((s) => s.name == _task.status)
+                                .color,
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -808,8 +790,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                                 const SizedBox(height: 4),
                                 Text(
                                   TaskStatus.values
-                                      .firstWhere((s) => s.name == _task.status)
-                                      .displayName,
+                                    .firstWhere((s) => s.name == _task.status)
+                                    .displayName,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
@@ -872,7 +854,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                               ),
                             ),
                           );
-
+                          
                           if (result != null) {
                             await _loadTaskBudget();
                             await _refreshTaskDetails();
@@ -883,58 +865,58 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-
+                  
                   _loadingBudget
                       ? const Center(child: CircularProgressIndicator())
                       : BudgetSummaryWidget(
-                    budgetAllocated: _task.budgetAllocated,
-                    budgetConsumed: _task.budgetConsumed,
-                    transactions: _taskTransactions,
-                    projectId: _task.projectId,
-                    phaseId: _task.phaseId,
-                    taskId: _task.id,
-                    onTransactionAdded: (transaction) async {
-                      setState(() {
-                        _taskTransactions.add(transaction);
-                        // Mettre à jour le budget consommé si c'est une dépense
-                        if (transaction.amount < 0) {
-                          _task = _task.copyWith(
-                            budgetConsumed: (_task.budgetConsumed ?? 0) + transaction.amount.abs(),
-                          );
-                        }
-                      });
-                      await _loadTaskBudget();
-                    },
-                    onTransactionUpdated: (transaction) async {
-                      setState(() {
-                        final index = _taskTransactions.indexWhere((t) => t.id == transaction.id);
-                        if (index != -1) {
-                          _taskTransactions[index] = transaction;
-                        }
-                      });
-                      await _loadTaskBudget();
-                      await _refreshTaskDetails();
-                    },
-                    onTransactionDeleted: (transaction) async {
-                      setState(() {
-                        _taskTransactions.removeWhere((t) => t.id == transaction.id);
-                      });
-                      await _loadTaskBudget();
-                      await _refreshTaskDetails();
-                    },
-                  ),
+                          budgetAllocated: _task.budgetAllocated,
+                          budgetConsumed: _task.budgetConsumed,
+                          transactions: _taskTransactions,
+                          projectId: _task.projectId,
+                          phaseId: _task.phaseId,
+                          taskId: _task.id,
+                          onTransactionAdded: (transaction) async {
+                            setState(() {
+                              _taskTransactions.add(transaction);
+                              // Mettre à jour le budget consommé si c'est une dépense
+                              if (transaction.amount < 0) {
+                                _task = _task.copyWith(
+                                  budgetConsumed: (_task.budgetConsumed ?? 0) + transaction.amount.abs(),
+                                );
+                              }
+                            });
+                            await _loadTaskBudget();
+                          },
+                          onTransactionUpdated: (transaction) async {
+                            setState(() {
+                              final index = _taskTransactions.indexWhere((t) => t.id == transaction.id);
+                              if (index != -1) {
+                                _taskTransactions[index] = transaction;
+                              }
+                            });
+                            await _loadTaskBudget();
+                            await _refreshTaskDetails();
+                          },
+                          onTransactionDeleted: (transaction) async {
+                            setState(() {
+                              _taskTransactions.removeWhere((t) => t.id == transaction.id);
+                            });
+                            await _loadTaskBudget();
+                            await _refreshTaskDetails();
+                          },
+                        ),
                 ],
               ),
             ),
           ),
-
+          
           const SizedBox(height: 16),
           _buildAttachmentsSection(),
-
+          
           // Section commentaires
           const SizedBox(height: 24),
           _buildCommentsSection(),
-
+          
           // Section historique des changements
           const SizedBox(height: 24),
           _buildTaskHistorySection(),
@@ -1272,7 +1254,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       });
 
       final attachment = await _attachmentService.takePhoto(_task.id);
-
+      
       if (attachment != null) {
         setState(() {
           _attachments.insert(0, attachment);
@@ -1294,7 +1276,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       });
 
       final attachment = await _attachmentService.uploadImageFromGallery(_task.id);
-
+      
       if (attachment != null) {
         setState(() {
           _attachments.insert(0, attachment);
@@ -1316,7 +1298,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       });
 
       final attachment = await _attachmentService.uploadDocument(_task.id);
-
+      
       if (attachment != null) {
         setState(() {
           _attachments.insert(0, attachment);
@@ -1400,7 +1382,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               },
             ),
           )
-        // Pour un PDF, nous utilisons Google PDF Viewer pour une meilleure compatibilité
+          // Pour un PDF, nous utilisons Google PDF Viewer pour une meilleure compatibilité
           ..loadRequest(
             Uri.parse('https://docs.google.com/viewer?url=${Uri.encodeComponent(attachment.url)}&embedded=true'),
           );
@@ -1435,7 +1417,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             duration: const Duration(seconds: 2),
           ),
         );
-
+        
         final Uri url = Uri.parse(attachment.url);
         try {
           if (await canLaunchUrl(url)) {
@@ -1478,7 +1460,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         },
       ),
     ];
-
+    
     // Vérifier si l'utilisateur a la permission de supprimer des pièces jointes
     _roleService.hasPermission('delete_attachment', projectId: _task.projectId).then((hasPermission) {
       if (hasPermission) {
@@ -1490,7 +1472,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             _confirmDeleteAttachment(attachment);
           },
         );
-
+        
         if (mounted) {
           setState(() {
             options.add(deleteOption);
@@ -1498,7 +1480,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         }
       }
     });
-
+    
     // Afficher le menu d'options
     showModalBottomSheet(
       context: context,
@@ -1514,19 +1496,19 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   Future<void> _shareAttachment(Attachment attachment) async {
     try {
       final loadingDialog = _showLoadingDialog('Préparation du partage...');
-
+      
       // Télécharger le fichier localement pour le partage
       final response = await http.get(Uri.parse(attachment.url));
-
+      
       if (response.statusCode == 200) {
         // Obtenir le répertoire temporaire pour stocker le fichier
         final tempDir = await getTemporaryDirectory();
         final filePath = '${tempDir.path}/${attachment.name}';
-
+        
         // Sauvegarder le fichier
         final file = File(filePath);
         await file.writeAsBytes(response.bodyBytes);
-
+        
         // Récupérer les informations du projet pour un meilleur contexte de partage
         String projectInfo = 'Projet: ${_task.projectId}';
         try {
@@ -1538,21 +1520,21 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           // En cas d'erreur, on garde l'ID du projet
           print('Erreur lors de la récupération du nom du projet: $e');
         }
-
+        
         // Fermer le dialogue de chargement
-        Navigator.pop(context);
-
+        Navigator.pop(context); 
+        
         // Générer un message de partage contextuel
         final taskInfo = 'Tâche: ${_task.title}';
         final shareMessage = 'Pièce jointe: ${attachment.name}\n$taskInfo\n$projectInfo';
-
+        
         // Partager le fichier
         final result = await Share.shareXFiles(
           [XFile(filePath)],
           text: shareMessage,
           subject: 'Pièce jointe: ${attachment.name}',
         );
-
+        
         if (result.status == ShareResultStatus.dismissed) {
           _showErrorSnackBar('Partage annulé');
         }
@@ -1566,7 +1548,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       try {
         Navigator.pop(context);
       } catch (_) {}
-
+      
       _showErrorSnackBar('Erreur lors du partage: $e');
     }
   }
@@ -1604,7 +1586,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       });
 
       await _attachmentService.deleteAttachment(attachment);
-
+      
       setState(() {
         _attachments.removeWhere((a) => a.id == attachment.id);
       });
@@ -1674,7 +1656,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   Widget _buildHistoryItem(TaskHistory historyEntry) {
     final userName = _userDisplayNames[historyEntry.userId] ?? 'Utilisateur';
-
+    
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -1735,7 +1717,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
+            
             // Zone de saisie de commentaire
             PermissionGated(
               permissionName: 'create_comment',
@@ -1749,8 +1731,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                       minLines: 2,
                       maxLines: 5,
                       decoration: InputDecoration(
-                        hintText: _editingCommentId != null
-                            ? 'Modifier votre commentaire...'
+                        hintText: _editingCommentId != null 
+                            ? 'Modifier votre commentaire...' 
                             : 'Ajouter un commentaire...',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -1772,12 +1754,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                         ),
                         onPressed: () async {
                           if (_commentController.text.trim().isEmpty) return;
-
+                          
                           try {
                             setState(() {
                               _loadingComments = true;
                             });
-
+                            
                             if (_editingCommentId != null) {
                               // Mettre à jour le commentaire existant
                               await _commentService.updateComment(
@@ -1794,7 +1776,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                                 _commentController.text.trim(),
                               );
                             }
-
+                            
                             _commentController.clear();
                             await _loadComments();
                           } catch (e) {
@@ -1823,11 +1805,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 ],
               ),
             ),
-
+            
             const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 8),
-
+            
             // Liste des commentaires
             if (_loadingComments)
               const Center(
@@ -1868,7 +1850,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     final userName = _userDisplayNames[comment.userId] ?? 'Utilisateur';
     final String currentUserId = _authService.currentUser?.id ?? '';
     final bool isCurrentUserComment = comment.userId == currentUserId;
-
+    
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -1976,7 +1958,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 setState(() {
                   _loadingComments = true;
                 });
-
+                
                 await _commentService.deleteComment(comment.id);
                 await _loadComments();
               } catch (e) {
@@ -2064,7 +2046,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   String _formatDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
-
+  
   String _formatDateTime(DateTime dateTime) {
     return '${dateTime.day.toString().padLeft(2, '0')}/${dateTime.month.toString().padLeft(2, '0')}/${dateTime.year} à ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
@@ -2080,13 +2062,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         ],
       ),
     );
-
+    
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) => dialog,
     );
-
+    
     return dialog;
   }
 
@@ -2125,7 +2107,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       ),
     );
   }
-
+  
   /// Widget d'erreur générique
   Widget _buildErrorWidget() {
     return Center(

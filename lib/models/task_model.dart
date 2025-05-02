@@ -4,7 +4,6 @@ class Task {
   final String id;
   final String projectId;
   final String? phaseId;
-  final String? subPhaseId;
   final String title;
   final String description;
   final DateTime createdAt;
@@ -21,7 +20,6 @@ class Task {
     required this.id,
     required this.projectId,
     this.phaseId,
-    this.subPhaseId,
     required this.title,
     required this.description,
     required this.createdAt,
@@ -41,29 +39,28 @@ class Task {
       id: json['id'] as String,
       projectId: json['project_id'] as String,
       phaseId: json['phase_id'] as String?,
-      subPhaseId: json['sub_phase_id'] as String?,
       title: json['title'] as String,
       description: json['description'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'] as String)
+      updatedAt: json['updated_at'] != null 
+          ? DateTime.parse(json['updated_at'] as String) 
           : null,
-      dueDate: json['due_date'] != null
-          ? DateTime.parse(json['due_date'] as String)
+      dueDate: json['due_date'] != null 
+          ? DateTime.parse(json['due_date'] as String) 
           : null,
       assignedTo: json['assigned_to'] as String?,
       createdBy: json['created_by'] as String,
       status: json['status'] as String,
       priority: json['priority'] as int,
       budgetAllocated: json['budget_allocated'] != null
-          ? (json['budget_allocated'] is int
-          ? (json['budget_allocated'] as int).toDouble()
-          : json['budget_allocated'] as double)
+          ? (json['budget_allocated'] is int 
+              ? (json['budget_allocated'] as int).toDouble()
+              : json['budget_allocated'] as double)
           : 0,
       budgetConsumed: json['budget_consumed'] != null
-          ? (json['budget_consumed'] is int
-          ? (json['budget_consumed'] as int).toDouble()
-          : json['budget_consumed'] as double)
+          ? (json['budget_consumed'] is int 
+              ? (json['budget_consumed'] as int).toDouble()
+              : json['budget_consumed'] as double)
           : 0,
     );
   }
@@ -74,7 +71,6 @@ class Task {
       'id': id,
       'project_id': projectId,
       'phase_id': phaseId,
-      'sub_phase_id': subPhaseId,
       'title': title,
       'description': description,
       'created_at': createdAt.toIso8601String(),
@@ -94,7 +90,6 @@ class Task {
     String? id,
     String? projectId,
     String? phaseId,
-    String? subPhaseId,
     String? title,
     String? description,
     DateTime? createdAt,
@@ -111,7 +106,6 @@ class Task {
       id: id ?? this.id,
       projectId: projectId ?? this.projectId,
       phaseId: phaseId ?? this.phaseId,
-      subPhaseId: subPhaseId ?? this.subPhaseId,
       title: title ?? this.title,
       description: description ?? this.description,
       createdAt: createdAt ?? this.createdAt,
@@ -148,7 +142,7 @@ class Task {
   // Obtenir une couleur en fonction de l'état du budget
   Color getBudgetStatusColor() {
     if (budgetAllocated == null || budgetConsumed == null) return Colors.grey;
-
+    
     final percentage = budgetUsagePercentage;
     if (percentage < 70) {
       return Colors.green;
@@ -179,10 +173,10 @@ enum TaskStatus {
         return 'En révision';
       case TaskStatus.completed:
         return 'Terminée';
-    //case TaskStatus.onHold:
-    //  return 'En attente';
-    //case TaskStatus.cancelled:
-    //  return 'Annulée';
+      //case TaskStatus.onHold:
+      //  return 'En attente';
+      //case TaskStatus.cancelled:
+      //  return 'Annulée';
     }
   }
 
@@ -196,13 +190,13 @@ enum TaskStatus {
         return Colors.orange;
       case TaskStatus.completed:
         return Colors.green;
-    //case TaskStatus.onHold:
-    //  return Colors.amber;
-    //case TaskStatus.cancelled:
-    //  return Colors.red;
+      //case TaskStatus.onHold:
+      //  return Colors.amber;
+      //case TaskStatus.cancelled:
+      //  return Colors.red;
     }
   }
-
+  
   // Méthodes pour la compatibilité avec le code existant
   String toValue() {
     switch (this) {
@@ -214,37 +208,37 @@ enum TaskStatus {
         return 'review';
       case TaskStatus.completed:
         return 'completed';
-    //case TaskStatus.onHold:
-    //  return 'on_hold';
-    //case TaskStatus.cancelled:
-    //  return 'cancelled';
+      //case TaskStatus.onHold:
+      //  return 'on_hold';
+      //case TaskStatus.cancelled:
+      //  return 'cancelled';
     }
   }
-
+  
   Color getColor() {
     return color;
   }
-
+  
   String getText() {
     return displayName;
   }
-
+  
   static TaskStatus fromValue(String value) {
     switch (value) {
       case 'todo':
         return TaskStatus.todo;
       case 'in_progress':
-      case 'inProgress':
+      case 'inProgress':  
         return TaskStatus.inProgress;
       case 'review':
         return TaskStatus.review;
       case 'completed':
         return TaskStatus.completed;
-    //case 'on_hold':
-    //case 'onHold':
-    //  return TaskStatus.onHold;
-    //case 'cancelled':
-    //  return TaskStatus.cancelled;
+      //case 'on_hold':
+      //case 'onHold':  
+      //  return TaskStatus.onHold;
+      //case 'cancelled':
+      //  return TaskStatus.cancelled;
       default:
         return TaskStatus.todo;
     }
@@ -296,12 +290,12 @@ enum TaskPriority {
         return 3;
     }
   }
-
+  
   // Méthodes pour la compatibilité avec le code existant
   Color getColor() {
     return color;
   }
-
+  
   String getText() {
     return displayName;
   }

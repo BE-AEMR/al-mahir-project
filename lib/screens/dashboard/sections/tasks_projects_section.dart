@@ -75,7 +75,7 @@ class TasksProjectsSection extends StatelessWidget {
           height: timelineHeight,
           child: TaskTimelineChart(
             data: upcomingTasksData,
-            title: 'Tâches à finir',
+            title: 'Tâches à venir',
             onSeeAllPressed: onSeeAllTasks,
             onTaskTap: onTaskTap,
           ),

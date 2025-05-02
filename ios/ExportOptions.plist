@@ -11,7 +11,7 @@
     <key>provisioningProfiles</key>
     <dict>
         <key>fr.almahir</key>
-        <string>Al Mahir Profile</string>
+        <string>Al Mahir Project</string>
     </dict>
     <key>compileBitcode</key>
     <false/>

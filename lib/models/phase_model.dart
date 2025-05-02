@@ -13,7 +13,6 @@ class Phase {
   final double? budgetAllocated;
   final double? budgetConsumed;
   final String? projectName;
-  final String? parentPhaseId;
 
   Phase({
     required this.id,
@@ -28,7 +27,6 @@ class Phase {
     this.budgetAllocated = 0,
     this.budgetConsumed = 0,
     this.projectName,
-    this.parentPhaseId,
   });
 
   // Convertir un objet JSON en objet Phase
@@ -39,24 +37,23 @@ class Phase {
       name: json['name'] as String,
       description: json['description'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'] as String)
+      updatedAt: json['updated_at'] != null 
+          ? DateTime.parse(json['updated_at'] as String) 
           : null,
       createdBy: json['created_by'] as String,
       orderIndex: json['order_index'] as int,
       status: json['status'] as String,
       budgetAllocated: json['budget_allocated'] != null
-          ? (json['budget_allocated'] is int
-          ? (json['budget_allocated'] as int).toDouble()
-          : json['budget_allocated'] as double)
+          ? (json['budget_allocated'] is int 
+              ? (json['budget_allocated'] as int).toDouble()
+              : json['budget_allocated'] as double)
           : 0,
       budgetConsumed: json['budget_consumed'] != null
-          ? (json['budget_consumed'] is int
-          ? (json['budget_consumed'] as int).toDouble()
-          : json['budget_consumed'] as double)
+          ? (json['budget_consumed'] is int 
+              ? (json['budget_consumed'] as int).toDouble()
+              : json['budget_consumed'] as double)
           : 0,
       projectName: json['project_name'] != null ? json['project_name'] as String : null,
-      parentPhaseId: json['parent_phase_id'] as String?,
     );
   }
 
@@ -74,7 +71,6 @@ class Phase {
       'status': status,
       'budget_allocated': budgetAllocated,
       'budget_consumed': budgetConsumed,
-      'parent_phase_id': parentPhaseId,
       // 'project_name' est supprimé car il n'existe pas dans la table de la base de données
     };
   }
@@ -93,7 +89,6 @@ class Phase {
     double? budgetAllocated,
     double? budgetConsumed,
     String? projectName,
-    String? parentPhaseId,
   }) {
     return Phase(
       id: id ?? this.id,
@@ -108,7 +103,6 @@ class Phase {
       budgetAllocated: budgetAllocated ?? this.budgetAllocated,
       budgetConsumed: budgetConsumed ?? this.budgetConsumed,
       projectName: projectName ?? this.projectName,
-      parentPhaseId: parentPhaseId ?? this.parentPhaseId,
     );
   }
 
@@ -131,13 +125,10 @@ class Phase {
     return budgetConsumed! > budgetAllocated!;
   }
 
-  // Vérifier si c'est une sous-phase
-  bool get isSubPhase => parentPhaseId != null;
-
   // Obtenir une couleur en fonction de l'état du budget
   Color getBudgetStatusColor() {
     if (budgetAllocated == null || budgetConsumed == null) return Colors.grey;
-
+    
     final percentage = budgetUsagePercentage;
     if (percentage < 70) {
       return Colors.green;
