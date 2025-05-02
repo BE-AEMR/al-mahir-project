@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/task_model.dart';
 import '../../models/phase_model.dart';
@@ -16,14 +15,12 @@ class TaskFormScreen extends StatefulWidget {
   final String projectId;
   final Task? task;
   final String? phaseId;
-  final String? subPhaseId;
 
   const TaskFormScreen({
     super.key,
     required this.projectId,
     this.task,
     this.phaseId,
-    this.subPhaseId,
   });
 
   @override
@@ -34,31 +31,28 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-
+  
   final ProjectService _projectService = ProjectService();
   final PhaseService _phaseService = PhaseService();
   final TeamService _teamService = TeamService();
   final AuthService _authService = AuthService();
   final RoleService _roleService = RoleService();
-
+  
   String _status = TaskStatus.todo.name;
   int _priority = TaskPriority.medium.value;
   DateTime? _dueDate;
   bool _isLoading = false;
   String? _errorMessage;
   String? _selectedPhaseId;
-  String? _selectedSubPhaseId;
   List<Phase> _phases = [];
-  List<Phase> _subPhases = [];
   bool _loadingPhases = true;
-  bool _loadingSubPhases = false;
-
+  
   // Nouvelles variables pour la gestion des équipes
   bool _assignToTeam = false;
   List<Team> _teams = [];
   String? _selectedTeamId;
   bool _loadingTeams = true;
-
+  
   // Nouvelles variables pour la liste des membres
   List<Map<String, dynamic>> _teamMembers = [];
   String? _selectedMemberId;
@@ -71,18 +65,6 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     _loadTeams();
     _loadTeamMembers();
     
-    // Délai pour s'assurer que le contexte est disponible pour ModalRoute
-    Future.microtask(() {
-      // Vérifier si une date d'échéance est passée via les arguments de la route
-      final routeArgs = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      if (routeArgs != null && routeArgs.containsKey('dueDate')) {
-        setState(() {
-          _dueDate = routeArgs['dueDate'] as DateTime;
-          print('DEBUG: Date d\'échéance préremplie: $_dueDate');
-        });
-      }
-    });
-
     if (widget.task != null) {
       _titleController.text = widget.task!.title;
       _descriptionController.text = widget.task!.description;
@@ -97,20 +79,8 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       _priority = widget.task!.priority;
       _dueDate = widget.task!.dueDate;
       _selectedPhaseId = widget.task!.phaseId;
-      _selectedSubPhaseId = widget.task!.subPhaseId;
-
-      // Si une phase est déjà sélectionnée, charger ses sous-phases
-      if (_selectedPhaseId != null) {
-        _loadSubPhases(_selectedPhaseId!);
-      }
     } else if (widget.phaseId != null) {
       _selectedPhaseId = widget.phaseId;
-      _loadSubPhases(widget.phaseId!);
-
-      // Si une sous-phase est spécifiée lors de la création
-      if (widget.subPhaseId != null) {
-        _selectedSubPhaseId = widget.subPhaseId;
-      }
     }
   }
 
@@ -174,55 +144,17 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     }
   }
 
-  Future<void> _loadSubPhases(String phaseId) async {
-    // Conserver la sous-phase actuelle si on est en mode édition
-    final currentSubPhaseId = _selectedSubPhaseId;
-    final isEditingExistingTask = widget.task != null;
-
-    setState(() {
-      _loadingSubPhases = true;
-      _subPhases = [];
-      // Ne pas réinitialiser si on édite une tâche existante avec une sous-phase
-      if (!isEditingExistingTask || currentSubPhaseId == null) {
-        _selectedSubPhaseId = null;
-      }
-    });
-
-    try {
-      // S'assurer que nous ne chargeons que les sous-phases de la phase sélectionnée
-      final subPhases = await _phaseService.getSubPhasesByParentId(phaseId);
-      setState(() {
-        _subPhases = subPhases;
-        _loadingSubPhases = false;
-
-        // Vérifier si la sous-phase précédemment sélectionnée existe toujours dans la liste
-        if (isEditingExistingTask && currentSubPhaseId != null) {
-          // Vérifier si la sous-phase sélectionnée fait partie de cette phase
-          final subPhaseExists = subPhases.any((subPhase) => subPhase.id == currentSubPhaseId);
-          if (subPhaseExists) {
-            _selectedSubPhaseId = currentSubPhaseId;
-          }
-        }
-      });
-    } catch (e) {
-      print('Erreur lors du chargement des sous-phases: $e');
-      setState(() {
-        _loadingSubPhases = false;
-      });
-    }
-  }
-
   // Méthode pour s'assurer qu'il n'y a pas de doublons dans la liste des membres
   List<Map<String, dynamic>> _getUniqueMembers() {
     final Map<String, Map<String, dynamic>> uniqueMembers = {};
-
+    
     for (var member in _teamMembers) {
       final id = member['id'] as String;
       if (!uniqueMembers.containsKey(id)) {
         uniqueMembers[id] = member;
       }
     }
-
+    
     return uniqueMembers.values.toList();
   }
 
@@ -253,19 +185,14 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
         return;
       }
 
-      // Vérifier si l'utilisateur a des rôles spéciaux
-      final userRoles = await _roleService.getUserRolesWithoutParam();
-      final hasAdminRights = userRoles.contains('system_admin') || userRoles.contains('project_manager');
-      
       String? taskId;
-      
-      // 1. Nouvelle tâche
+
       if (widget.task == null) {
+        // Créer une nouvelle tâche
         final newTask = Task(
-          id: Uuid().v4(),
+          id: Uuid().v4(), // Générer un ID unique
           projectId: widget.projectId,
           phaseId: _selectedPhaseId,
-          subPhaseId: _selectedSubPhaseId,
           title: _titleController.text.trim(),
           description: _descriptionController.text.trim(),
           createdAt: DateTime.now(),
@@ -278,118 +205,35 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
 
         final createdTask = await _projectService.createTask(newTask);
         taskId = createdTask.id;
-      } 
-      // 2. Mise à jour d'une tâche existante
-      else {
+      } else {
+        // Récupérer l'ancienne tâche pour comparer les changements
         final oldTask = widget.task!;
         
-        // Si passage d'un assigné individuel à une équipe et l'utilisateur n'a pas de droits d'admin
-        if (_assignToTeam && oldTask.assignedTo != null && !hasAdminRights) {
-          // 2.1 D'abord associer à l'équipe (fonctionne car l'utilisateur est le créateur ou l'assigné)
-          if (_selectedTeamId != null) {
-            await _teamService.assignTaskToTeam(oldTask.id, _selectedTeamId!);
-          }
-          
-          // 2.2 Ensuite mettre à jour la tâche
-          final updatedTask = oldTask.copyWith(
-            title: _titleController.text.trim(),
-            description: _descriptionController.text.trim(),
-            updatedAt: DateTime.now(),
-            assignedTo: null, // Enlever l'assignation individuelle
-            status: _status,
-            priority: _priority,
-            dueDate: _dueDate,
-            phaseId: _selectedPhaseId,
-            subPhaseId: _selectedSubPhaseId,
-          );
-          
-          await _projectService.updateTask(updatedTask, oldTask: oldTask);
-        } else {
-          // Cas standard ou utilisateur avec droits d'admin
-          final updatedTask = oldTask.copyWith(
-            title: _titleController.text.trim(),
-            description: _descriptionController.text.trim(),
-            updatedAt: DateTime.now(),
-            assignedTo: _assignToTeam ? null : _selectedMemberId,
-            status: _status,
-            priority: _priority,
-            dueDate: _dueDate,
-            phaseId: _selectedPhaseId,
-            subPhaseId: _selectedSubPhaseId,
-          );
-          
-          await _projectService.updateTask(updatedTask, oldTask: oldTask);
-        }
-        
+        // Créer la tâche mise à jour
+        final updatedTask = oldTask.copyWith(
+          title: _titleController.text.trim(),
+          description: _descriptionController.text.trim(),
+          updatedAt: DateTime.now(),
+          assignedTo: _assignToTeam ? null : _selectedMemberId,
+          status: _status,
+          priority: _priority,
+          dueDate: _dueDate,
+          phaseId: _selectedPhaseId,
+        );
+
+        // Utiliser la méthode updateTask mise à jour qui prend en compte les changements
+        await _projectService.updateTask(updatedTask, oldTask: oldTask);
         taskId = oldTask.id;
       }
 
-      // 3. Gestion des associations avec les équipes
+      // Gérer l'assignation d'équipe si nécessaire
       if (_assignToTeam && _selectedTeamId != null) {
-        print('DEBUG: TRANSITION - Début de l\'assignation à l\'équipe ${_selectedTeamId}');
-        
-        // Récupérer l'état initial de la tâche pour traçage
-        final taskBeforeTeamAssignment = await _projectService.getTaskById(taskId);
-        print('DEBUG: ÉTAT AVANT ÉQUIPE - Task $taskId: assigned_to=${taskBeforeTeamAssignment.assignedTo}, teamId avant association=$_selectedTeamId');
-        
-        // Supprimer toutes les associations d'équipes existantes
+        // D'abord supprimer toutes les associations d'équipes existantes
         await _teamService.removeAllTeamsFromTask(taskId);
-        print('DEBUG: ASSOCIATIONS ÉQUIPES SUPPRIMÉES pour tâche $taskId');
         
-        // Ajouter la nouvelle association
+        // Puis ajouter la nouvelle association
         await _teamService.assignTaskToTeam(taskId, _selectedTeamId!);
-        print('DEBUG: TÂCHE ASSIGNÉE À ÉQUIPE $_selectedTeamId');
-        
-        // Vérification de l'état intermédiaire
-        final taskAfterTeamAssignment = await _projectService.getTaskById(taskId);
-        print('DEBUG: ÉTAT INTERMÉDIAIRE - Task $taskId: assigned_to=${taskAfterTeamAssignment.assignedTo}, équipe associée');
-        
-        // Si assignedTo est encore rempli, forcer à null explicitement
-        if (taskAfterTeamAssignment.assignedTo != null) {
-          print('DEBUG: TENTATIVE CORRECTION - Tâche toujours assignée à ${taskAfterTeamAssignment.assignedTo}, forçage à null...');
-          
-          // Version 1: UPDATE direct via service
-          final updateResult = await _projectService.updateTask(
-            taskAfterTeamAssignment.copyWith(assignedTo: null),
-            oldTask: taskAfterTeamAssignment
-          );
-          print('DEBUG: RÉSULTAT CORRECTION - Mise à jour effectuée: ${updateResult != null}');
-          
-          // Vérification post-correction
-          final taskFinal = await _projectService.getTaskById(taskId);
-          print('DEBUG: ÉTAT FINAL - Task $taskId: assigned_to=${taskFinal.assignedTo}, correction réussie: ${taskFinal.assignedTo == null}');
-          
-          // Version 2: Si toujours pas corrigé, essayer UPDATE SQL direct
-          if (taskFinal.assignedTo != null) {
-            print('DEBUG: ÉCHEC CORRECTION DART - Tentative SQL directe');
-            try {
-              // Utiliser directement Supabase pour une requête SQL si le modèle Dart échoue
-              final client = Supabase.instance.client;
-              final response = await client
-                .from('tasks')
-                .update({'assigned_to': null})
-                .eq('id', taskId);
-              
-              print('DEBUG: RÉSULTAT SQL DIRECT: $response');
-              
-              // Vérification finale
-              final taskAfterSQL = await _projectService.getTaskById(taskId);
-              print('DEBUG: APRÈS SQL DIRECT - assigned_to=${taskAfterSQL.assignedTo}');
-            } catch (sqlError) {
-              print('DEBUG: ERREUR SQL DIRECT: $sqlError');
-            }
-          }
-        }
-      } else if (!_assignToTeam && _selectedMemberId != null) {
-        // Si on assigne à un individu, supprimer les associations d'équipes
-        print('DEBUG: TRANSITION - Assignation individuelle à $_selectedMemberId');
-        await _teamService.removeAllTeamsFromTask(taskId);
-        print('DEBUG: ASSOCIATIONS ÉQUIPES SUPPRIMÉES pour assignation individuelle');
-        
-        // Vérification finale
-        final taskFinal = await _projectService.getTaskById(taskId);
-        print('DEBUG: ÉTAT FINAL INDIVIDU - assigned_to=${taskFinal.assignedTo}, attendu: $_selectedMemberId');
-      }  
+      }
 
       if (mounted) {
         Navigator.pop(context, true); // Retourner à l'écran précédent avec un résultat
@@ -426,7 +270,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   @override
   Widget build(BuildContext context) {
     final permissionName = widget.task == null ? 'create_task' : 'update_task';
-
+    
     return RbacGatedScreen(
       permissionName: permissionName,
       projectId: widget.projectId,
@@ -470,85 +314,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
               maxLines: 3,
             ),
             const SizedBox(height: 16),
-
-            // Sélection de la phase
-            _loadingPhases
-                ? const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 8.0),
-                child: CircularProgressIndicator(),
-              ),
-            )
-                : DropdownButtonFormField<String?>(
-              decoration: const InputDecoration(
-                labelText: 'Phase',
-                border: OutlineInputBorder(),
-              ),
-              value: _selectedPhaseId,
-              hint: const Text('Sélectionner une phase'),
-              items: [
-                ..._phases.map((phase) => DropdownMenuItem<String?>(
-                  value: phase.id,
-                  child: Text(phase.name),
-                )),
-              ],
-              validator: (value) {
-                if (value == null) {
-                  return 'Veuillez sélectionner une phase';
-                }
-                return null;
-              },
-              onChanged: (value) {
-                setState(() {
-                  _selectedPhaseId = value;
-                  _selectedSubPhaseId = null; // Réinitialiser la sous-phase
-                  _subPhases = []; // Réinitialiser les sous-phases
-                });
-                if (value != null) {
-                  _loadSubPhases(value);
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // Sélection de la sous-phase (si disponible)
-            if (_selectedPhaseId != null) ...
-            [
-              _loadingSubPhases
-                  ? const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8.0),
-                  child: CircularProgressIndicator(),
-                ),
-              )
-                  : _subPhases.isNotEmpty
-                  ? DropdownButtonFormField<String?>(
-                decoration: const InputDecoration(
-                  labelText: 'Sous-phase (optionnel)',
-                  border: OutlineInputBorder(),
-                ),
-                value: _selectedSubPhaseId,
-                hint: const Text('Sélectionner une sous-phase'),
-                items: [
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('Aucune sous-phase'),
-                  ),
-                  ..._subPhases.map((subPhase) => DropdownMenuItem<String?>(
-                    value: subPhase.id,
-                    child: Text(subPhase.name),
-                  )),
-                ],
-                onChanged: (value) {
-                  setState(() {
-                    _selectedSubPhaseId = value;
-                  });
-                },
-              )
-                  : Container(),
-              const SizedBox(height: 16),
-            ],
-
+            
             // Contrôle d'assignation avec permission 'assign_task'
             PermissionGated(
               permissionName: 'assign_task',
@@ -566,7 +332,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                       });
                     },
                   ),
-
+                  
                   // Afficher le champ approprié selon le choix d'assignation
                   if (!_assignToTeam) ...[
                     if (_loadingTeamMembers)
@@ -587,7 +353,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                         items: _getUniqueMembers().map((member) {
                           // Générer une clé unique basée sur l'ID du membre
                           final String memberId = member['id'] as String;
-
+                          
                           return DropdownMenuItem<String>(
                             key: ValueKey('member-$memberId'), // Ajouter une clé unique
                             value: memberId,
@@ -703,6 +469,47 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
               ],
             ),
             const SizedBox(height: 16),
+            if (_loadingPhases)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (_phases.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Phase',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                ),
+                value: _selectedPhaseId,
+                hint: const Text('Sélectionner une phase'),
+                items: [
+                  const DropdownMenuItem<String>(
+                    value: null,
+                    child: Text('Aucune phase'),
+                  ),
+                  ..._phases.map((phase) => DropdownMenuItem<String>(
+                    value: phase.id,
+                    child: Text(phase.name),
+                  )).toList(),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedPhaseId = value;
+                  });
+                },
+              ),
+            ],
             const SizedBox(height: 16),
             InkWell(
               onTap: _selectDueDate,
@@ -715,10 +522,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     onPressed: _dueDate == null
                         ? null
                         : () {
-                      setState(() {
-                        _dueDate = null;
-                      });
-                    },
+                            setState(() {
+                              _dueDate = null;
+                            });
+                          },
                   ),
                 ),
                 child: Row(
@@ -751,15 +558,15 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
               ),
               child: _isLoading
                   ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                ),
-              )
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    )
                   : Text(
-                widget.task == null ? 'Créer la tâche' : 'Enregistrer les modifications',
-              ),
+                      widget.task == null ? 'Créer la tâche' : 'Enregistrer les modifications',
+                    ),
             ),
           ],
         ),

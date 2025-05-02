@@ -3,7 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/islamic_patterns.dart';
 import 'edit_profile_screen.dart';
-import '../settings/delete_account_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -239,47 +238,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 16),
-                  // Bouton de suppression de compte
-                  SizedBox(
-                    width: MediaQuery.of(context).size.width * 0.8, // Largeur plus grande pour le bouton de suppression
-                    child: IslamicDecorativeButton(
-                      text: 'Supprimer mon compte',
-                      icon: Icons.delete_forever,
-                      onPressed: () {
-                        // Afficher une boîte de dialogue de confirmation
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Supprimer votre compte ?'),
-                            content: const Text(
-                              'Cette action est irréversible. Toutes vos données seront définitivement supprimées.',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('Annuler'),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.of(context).pop();
-                                  // Naviguer vers l'écran de suppression de compte
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (context) => const DeleteAccountScreen(),
-                                    ),
-                                  );
-                                },
-                                child: const Text('Continuer', style: TextStyle(color: Colors.red)),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                      color: Colors.red.shade900,
-                    ),
                   ),
                 ],
               ),

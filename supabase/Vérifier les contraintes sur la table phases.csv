@@ -1,6 +1,0 @@
-constraint_name,constraint_type,constraint_definition
-phases_created_by_fkey,f,FOREIGN KEY (created_by) REFERENCES auth.users(id)
-phases_parent_phase_id_fkey,f,FOREIGN KEY (parent_phase_id) REFERENCES phases(id) ON DELETE CASCADE
-phases_pkey,p,PRIMARY KEY (id)
-phases_project_id_fkey,f,FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-phases_status_check,c,"CHECK ((status = ANY (ARRAY['not_started'::text, 'in_progress'::text, 'completed'::text, 'on_hold'::text, 'cancelled'::text])))"

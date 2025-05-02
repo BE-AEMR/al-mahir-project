@@ -8,8 +8,6 @@ class TaskHistorySection extends StatelessWidget {
   final Map<String, Task> tasksMap;
   final VoidCallback? onSeeAllHistory;
   final Function(String)? onTaskTap;
-  final bool hasFullAccess;
-  final List<String> accessibleProjectIds;
 
   const TaskHistorySection({
     Key? key,
@@ -18,8 +16,6 @@ class TaskHistorySection extends StatelessWidget {
     required this.tasksMap,
     this.onSeeAllHistory,
     this.onTaskTap,
-    this.hasFullAccess = false,
-    this.accessibleProjectIds = const [],
   }) : super(key: key);
 
   @override

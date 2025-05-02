@@ -147,43 +147,44 @@ class _PhaseFormState extends State<PhaseForm> {
                 ),
                 maxLines: 3,
               ),
-              // Toujours montrer le statut pour les phases et sous-phases
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _status,
-                decoration: const InputDecoration(
-                  labelText: 'Statut',
+              if (widget.phase != null) ...[
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: _status,
+                  decoration: const InputDecoration(
+                    labelText: 'Statut',
+                  ),
+                  items: [
+                    DropdownMenuItem(
+                      value: PhaseStatus.notStarted.toValue(),
+                      child: Text(PhaseStatus.notStarted.getText()),
+                    ),
+                    DropdownMenuItem(
+                      value: PhaseStatus.inProgress.toValue(),
+                      child: Text(PhaseStatus.inProgress.getText()),
+                    ),
+                    DropdownMenuItem(
+                      value: PhaseStatus.completed.toValue(),
+                      child: Text(PhaseStatus.completed.getText()),
+                    ),
+                    DropdownMenuItem(
+                      value: PhaseStatus.onHold.toValue(),
+                      child: Text(PhaseStatus.onHold.getText()),
+                    ),
+                    DropdownMenuItem(
+                      value: PhaseStatus.cancelled.toValue(),
+                      child: Text(PhaseStatus.cancelled.getText()),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        _status = value;
+                      });
+                    }
+                  },
                 ),
-                items: [
-                  DropdownMenuItem(
-                    value: PhaseStatus.notStarted.toValue(),
-                    child: Text(PhaseStatus.notStarted.getText()),
-                  ),
-                  DropdownMenuItem(
-                    value: PhaseStatus.inProgress.toValue(),
-                    child: Text(PhaseStatus.inProgress.getText()),
-                  ),
-                  DropdownMenuItem(
-                    value: PhaseStatus.completed.toValue(),
-                    child: Text(PhaseStatus.completed.getText()),
-                  ),
-                  DropdownMenuItem(
-                    value: PhaseStatus.onHold.toValue(),
-                    child: Text(PhaseStatus.onHold.getText()),
-                  ),
-                  DropdownMenuItem(
-                    value: PhaseStatus.cancelled.toValue(),
-                    child: Text(PhaseStatus.cancelled.getText()),
-                  ),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _status = value;
-                    });
-                  }
-                },
-              ),
+              ],
             ],
           ),
         ),
@@ -197,12 +198,12 @@ class _PhaseFormState extends State<PhaseForm> {
           onPressed: _isLoading ? null : _submitForm,
           child: _isLoading
               ? const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-            ),
-          )
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                  ),
+                )
               : Text(widget.phase == null ? 'Ajouter' : 'Mettre à jour'),
         ),
       ],
