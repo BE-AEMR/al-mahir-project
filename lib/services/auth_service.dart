@@ -108,4 +108,29 @@ class AuthService {
       rethrow;
     }
   }
+
+  // Suppression de compte utilisateur
+  Future<void> deleteAccount() async {
+    try {
+      print('Tentative de suppression du compte utilisateur');
+      final user = currentUser;
+      if (user == null) {
+        throw Exception('Aucun utilisateur connecté');
+      }
+      
+      // Supprimer les données de l'utilisateur dans les tables personnalisées
+      await _client.from('profiles').delete().eq('id', user.id);
+      
+      // Supprimer le compte utilisateur de Supabase
+      await _client.auth.admin.deleteUser(user.id);
+      
+      print('Compte utilisateur supprimé avec succès');
+      
+      // Déconnexion après suppression
+      await signOut();
+    } catch (e) {
+      print('Erreur lors de la suppression du compte: $e');
+      rethrow;
+    }
+  }
 }
