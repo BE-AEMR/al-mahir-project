@@ -26,6 +26,7 @@ import 'screens/budget/finance_dashboard_screen.dart';
 import 'screens/finance/project_finance_dashboard_screen.dart'; // Nouvel emplacement plus approprié
 import 'screens/notifications/notifications_screen.dart';
 import 'screens/budget/categories/transaction_categories_screen.dart'; // Import pour l'écran de catégories
+import 'screens/settings/settings_screen.dart'; // Import pour l'écran des paramètres
 import 'widgets/sidebar_menu.dart';
 import 'widgets/islamic_patterns.dart';
 import 'widgets/notification_popup.dart';
@@ -273,6 +274,7 @@ class MyApp extends StatelessWidget {
           '/profile': (context) => const ProfileScreen(),
           '/notifications': (context) => const NotificationsScreen(),
           '/transaction-categories': (context) => const TransactionCategoriesScreen(),
+          '/settings': (context) => const SettingsScreen(),
           '/invitation': (context) {
             // Récupérer les paramètres d'URL pour l'invitation
             final args = ModalRoute.of(context)!.settings.arguments as Map<String, String>?;
